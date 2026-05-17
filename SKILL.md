@@ -56,13 +56,15 @@ bash scripts/fetch-github-data.sh <username>
 - 网络重试：最多 3 次，指数退避
 - 降级容错：GraphQL 阶段失败时，REST 数据仍完整保留
 
-脚本输出结构：
+脚本输出结构（7 阶段，版本 2.1.0）：
 ```json
 {
-  "meta": { "username": "...", "fetched_at": "...", "version": "2.0.0" },
-  "profile": { /* 用户基本资料 */ },
-  "repositories": [ /* 前100个按星标排序的仓库 */ ],
+  "meta": { "username": "...", "fetched_at": "...", "version": "2.1.0" },
+  "profile": { /* 用户基本资料，含 followers/following/public_repos */ },
+  "repositories": [ /* 前100个按星标排序的仓库，含 has_issues/wiki/pages/discussions 等 */ ],
+  "quality": [ /* Top 5 仓库质量快照：社区健康度 + CI/CD + workflows + deployments */ ],
   "organizations": [ /* 所属组织 */ ],
+  "gists": [ /* 公开 Gists（代码片段、笔记） */ ],
   "contributions": { /* 贡献统计 + 日历 + 仓库贡献分布 */ },
   "activity": { /* 最近30 PR + 最近30 Issue */ }
 }

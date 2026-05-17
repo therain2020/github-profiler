@@ -115,10 +115,9 @@ api_call() {
 }
 
 graphql_call() {
-  local query_text="$1"
-  # 将查询转为单行 JSON 字符串
+  local query_text="$1" username="${2:-}"
   local gql_body
-  gql_body=$(jq -n --arg q "$query_text" '{query: $q}')
+  gql_body=$(jq -n --arg q "$query_text" --arg u "$username" '{query: $q, variables: {login: $u}}')
   api_call "POST" "$GITHUB_GRAPHQL_URL" "$gql_body"
 }
 
@@ -248,23 +247,15 @@ fetch_repos_rest() {
     # 提取关键字段，精简输出
     local slim_page
     slim_page=$(echo "$page_data" | jq '[.[] | {
-      id,
-      name,
-      full_name,
-      description,
-      html_url,
-      homepage,
-      language,
-      stargazers_count,
-      forks_count,
-      open_issues_count,
+      id, name, full_name, description, html_url, homepage,
+      language, stargazers_count, forks_count, open_issues_count,
       license: (.license.spdx_id // null),
-      fork,
-      archived,
+      fork, archived, disabled, visibility,
       topics: (.topics // []),
-      created_at,
-      updated_at,
-      pushed_at
+      has_issues, has_projects, has_wiki, has_pages, has_discussions,
+      allow_forking, web_commit_signoff_required, size,
+      default_branch,
+      created_at, updated_at, pushed_at
     }]')
 
     all_repos=$(echo "$all_repos" "$slim_page" | jq -s '.[0] + .[1]')
@@ -291,6 +282,139 @@ fetch_orgs() {
   resp=$(api_call "GET" "${GITHUB_API_BASE}/users/${username}/orgs") || return 1
 
   echo "$resp" | jq '[.[] | { login, id, avatar_url, description }]'
+}
+
+# 仓库质量快照：社区健康度 + CI/CD + 部署（仅分析 top N 仓库）
+# 利用 repo:status / repo_deployment / workflow 权限
+# 并行执行 — 所有仓库同时检查，大幅减少总耗时
+fetch_repo_quality() {
+  local repos_json="$1"
+  local top_n="${2:-5}"
+
+  local repo_array
+  repo_array=$(echo "$repos_json" | jq -r ".[0:$top_n] | [.[].full_name] | .[]" | sed 's/\r$//')
+
+  if [ -z "$repo_array" ]; then
+    echo '[]'
+    return 0
+  fi
+
+  # 收集仓库名到数组
+  local -a repos=()
+  while IFS= read -r line; do
+    [ -n "$line" ] && repos+=("$line")
+  done <<< "$repo_array"
+
+  local total=${#repos[@]}
+  info "并行检查 ${total} 个仓库的质量指标..."
+
+  # 预提取 default_branch 映射（避免每个后台任务重复 jq 扫描全量数据）
+  local db_map
+  db_map=$(echo "$repos_json" | jq -r '[.[] | {full_name, default_branch: (.default_branch // "main")}] | .[] | "\(.full_name)=\(.default_branch)"')
+
+  local q_tmp_dir
+  q_tmp_dir=$(mktemp -d)
+
+  # 每个仓库的质量检查作为后台任务并行执行
+  local launched=0
+  for full_name in "${repos[@]}"; do
+    (
+      local owner="${full_name%%/*}" repo="${full_name##*/}"
+      # 从预提取的映射中查找默认分支
+      local db=$(echo "$db_map" | grep "^${full_name}=" | cut -d= -f2-)
+      [ -z "$db" ] && db="main"
+      local community status_json workflows deployments
+
+      community=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/community/profile" 2>/dev/null || echo '{}')
+      status_json=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/commits/${db}/status" 2>/dev/null || echo '{}')
+      workflows=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/actions/workflows" 2>/dev/null || echo '{"total_count":0,"workflows":[]}')
+      deployments=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/deployments?per_page=5" 2>/dev/null || echo '[]')
+
+      jq -n \
+        --arg full_name "$full_name" \
+        --argjson community "$community" \
+        --argjson status "$status_json" \
+        --argjson workflows "$workflows" \
+        --argjson deployments "$deployments" \
+        '{
+          repo: $full_name,
+          community: {
+            health_percentage: ($community.health_percentage // 0),
+            has_readme: ($community.files.readme != null),
+            has_contributing: ($community.files.contributing != null),
+            has_code_of_conduct: ($community.files.code_of_conduct != null),
+            has_license_template: ($community.files.license_template != null)
+          },
+          ci: {
+            has_status_checks: ($status.total_count > 0),
+            state: ($status.state // "unknown"),
+            check_count: ($status.total_count // 0)
+          },
+          workflows: {
+            count: ($workflows.total_count // 0),
+            names: [($workflows.workflows // [])[].name]
+          },
+          deployments: {
+            count: ($deployments | length),
+            environments: [$deployments[].environment]
+          }
+        }' > "${q_tmp_dir}/${owner}___${repo}.json"
+    ) &
+
+    # 每启动 3 个后台任务后稍作等待（避免瞬间大量并发触发限速）
+    if [ $(( (launched + 1) % 3 )) -eq 0 ]; then
+      sleep 0.5
+    fi
+    ((launched++))
+  done
+
+  # 等待所有后台任务完成，同时显示进度
+  local progress=0
+  while [ $progress -lt $total ]; do
+    sleep 2
+    progress=$(find "$q_tmp_dir" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
+    printf "\r  [进度] %d/%d 个仓库检查完成..." "$progress" "$total" >&2
+  done
+  echo "" >&2
+  ok "所有仓库质量检查完成"
+
+  # 按原始顺序收集结果
+  local results="["
+  local first=true
+  for full_name in "${repos[@]}"; do
+    [ "$first" = true ] && first=false || results+=","
+    local f="${q_tmp_dir}/${full_name//\//___}.json"
+    if [ -f "$f" ]; then
+      results+=$(<"$f")
+    else
+      results+="{\"repo\":\"$full_name\",\"error\":\"check failed\"}"
+    fi
+  done
+  results+="]"
+
+  rm -rf "$q_tmp_dir"
+  echo "$results"
+}
+
+# 用户公开 Gists（利用 gist 权限 — 补充技术兴趣信号）
+fetch_user_gists() {
+  local username="$1"
+  info "获取用户公开 Gists: $username"
+
+  local resp
+  resp=$(api_call "GET" "${GITHUB_API_BASE}/users/${username}/gists?per_page=30") || {
+    echo '[]'
+    return 0
+  }
+
+  echo "$resp" | jq '[.[] | {
+    id, description,
+    files: ([.files | to_entries[].value | {filename, language, size}]),
+    public,
+    created_at,
+    updated_at,
+    comments
+  }]'
 }
 
 # ============================================================================
@@ -350,7 +474,7 @@ query($login: String!) {
 ENDGQL
 
   local resp
-  resp=$(graphql_call "$query") || return 1
+  resp=$(graphql_call "$query" "$username") || return 1
 
   # 检查 GraphQL 层面的错误
   if echo "$resp" | jq -e '.errors' > /dev/null 2>&1; then
@@ -383,11 +507,11 @@ ENDGQL
     },
     top_commit_repos: [.data.user.contributionsCollection.commitContributionsByRepository[] | {
       repo: .repository.nameWithOwner,
-      commits: .contributions[0].totalCount
+      commits: .contributions.totalCount
     }],
     top_pr_repos: [.data.user.contributionsCollection.pullRequestContributionsByRepository[] | {
       repo: .repository.nameWithOwner,
-      prs: .contributions[0].totalCount
+      prs: .contributions.totalCount
     }]
   }'
 }
@@ -396,7 +520,7 @@ fetch_activity_graphql() {
   local username="$1"
   info "获取最近 PR 和 Issue 活动（GraphQL）"
 
-  ensure_graphql_quota 20 || return 1
+  ensure_rate_quota 20 graphql "GraphQL" || return 1
 
   local query
   read -r -d '' query << 'ENDGQL' || true
@@ -429,7 +553,7 @@ query($login: String!) {
 ENDGQL
 
   local resp
-  resp=$(graphql_call "$query") || return 1
+  resp=$(graphql_call "$query" "$username") || return 1
 
   if echo "$resp" | jq -e '.errors' > /dev/null 2>&1; then
     local gql_err
@@ -468,34 +592,30 @@ ENDGQL
 # 汇总与输出
 # ============================================================================
 
-# 将所有阶段的数据合并为最终 JSON
+# 将所有阶段的数据合并为最终 JSON（通过临时文件避免参数过长）
+# 各阶段文件统一存放在 $tmp_dir 下，按固定命名约定读取
 merge_output() {
-  local profile_json="$1"
-  local repos_json="$2"
-  local orgs_json="$3"
-  local contrib_json="$4"
-  local activity_json="$5"
-  local username="$6"
+  local tmp_dir="$1" username="$2"
 
   jq -n \
-    --argjson profile "$profile_json" \
-    --argjson repos "$repos_json" \
-    --argjson orgs "$orgs_json" \
-    --argjson contrib "$contrib_json" \
-    --argjson activity "$activity_json" \
+    --slurpfile profile  "${tmp_dir}/profile.json" \
+    --slurpfile repos    "${tmp_dir}/repos.json" \
+    --slurpfile orgs     "${tmp_dir}/orgs.json" \
+    --slurpfile contrib  "${tmp_dir}/contrib.json" \
+    --slurpfile activity "${tmp_dir}/activity.json" \
+    --slurpfile quality  "${tmp_dir}/quality.json" \
+    --slurpfile gists    "${tmp_dir}/gists.json" \
     --arg username "$username" \
     --arg fetched_at "$(date -Iseconds)" \
     '{
-      meta: {
-        username: $username,
-        fetched_at: $fetched_at,
-        version: "2.0.0"
-      },
-      profile: $profile,
-      repositories: $repos,
-      organizations: $orgs,
-      contributions: $contrib,
-      activity: $activity
+      meta: { username: $username, fetched_at: $fetched_at, version: "2.1.0" },
+      profile: $profile[0],
+      repositories: $repos[0],
+      quality: $quality[0],
+      organizations: $orgs[0],
+      gists: $gists[0],
+      contributions: $contrib[0],
+      activity: $activity[0]
     }'
 }
 
@@ -541,9 +661,9 @@ main() {
     exit 1
   fi
 
-  # 验证 Token 格式（ghp_ 或 github_pat_ 开头）
-  if ! [[ "$GITHUB_TOKEN" =~ ^(ghp_|github_pat_) ]]; then
-    warn "GITHUB_TOKEN 格式可能不正确。GitHub 令牌通常以 'ghp_' 或 'github_pat_' 开头"
+  # 验证 Token 格式
+  if ! [[ "$GITHUB_TOKEN" =~ ^(ghp_|github_pat_|gho_) ]]; then
+    warn "GITHUB_TOKEN 格式看起来不常见，请确认 Token 正确"
     warn "如果后续请求全部失败，请检查 Token"
   fi
 
@@ -579,71 +699,78 @@ main() {
     info "强制刷新模式，忽略已有缓存"
   fi
 
+  # 临时目录（存放各阶段输出，合并后清理）
+  local tmp_dir
+  tmp_dir=$(mktemp -d)
+  trap "rm -rf $tmp_dir" EXIT
+
   # ========================================================================
-  # 顺序执行各阶段
+  # 顺序执行各阶段（每阶段结果写入临时文件）
   # ========================================================================
 
   # --- 阶段1: 用户资料 (REST, 1 call) ---
-  local profile_json
-  profile_json=$(fetch_user_profile "$username") || {
+  local p1_file="${tmp_dir}/profile.json"
+  fetch_user_profile "$username" > "$p1_file" || {
     err "无法获取用户 $username 的资料。请确认用户名正确或 Token 是否有效。"
     exit 4
   }
-  ok "阶段1/5: 用户资料获取完成"
+  ok "阶段1/7: 用户资料获取完成"
 
   # --- 阶段2: 仓库列表 (REST 分页, 最多 3 calls) ---
-  local repos_json
-  repos_json=$(fetch_repos_rest "$username" "$REPO_TARGET_COUNT") || {
+  local p2_file="${tmp_dir}/repos.json"
+  fetch_repos_rest "$username" "$REPO_TARGET_COUNT" > "$p2_file" || {
     err "无法获取仓库列表"
     exit 4
   }
-  ok "阶段2/5: 仓库列表获取完成"
+  ok "阶段2/7: 仓库列表获取完成"
 
   # --- 阶段3: 组织 (REST, 1 call) ---
-  local orgs_json
-  orgs_json=$(fetch_orgs "$username") || {
+  local p3_file="${tmp_dir}/orgs.json"
+  fetch_orgs "$username" > "$p3_file" || {
     warn "无法获取组织列表，使用空数组"
-    orgs_json='[]'
+    echo '[]' > "$p3_file"
   }
-  ok "阶段3/5: 组织列表获取完成"
+  ok "阶段3/7: 组织列表获取完成"
 
   # --- 阶段4: 贡献统计 (GraphQL) ---
-  local contrib_json
-  contrib_json=$(fetch_contributions_graphql "$username") || {
+  local p4_file="${tmp_dir}/contrib.json"
+  fetch_contributions_graphql "$username" > "$p4_file" || {
     warn "GraphQL 贡献查询失败，使用降级方案..."
-    contrib_json=$(jq -n '{
-      total_commit_contributions: null,
-      total_issue_contributions: null,
-      total_pr_contributions: null,
-      total_review_contributions: null,
-      restricted_contributions: null,
-      calendar: { total: null, weeks: [] },
-      top_commit_repos: [],
-      top_pr_repos: []
-    }')
+    jq -n '{total_commit_contributions:null,total_issue_contributions:null,total_pr_contributions:null,total_review_contributions:null,restricted_contributions:null,calendar:{total:null,weeks:[]},top_commit_repos:[],top_pr_repos:[]}' > "$p4_file"
   }
-  ok "阶段4/5: 贡献统计获取完成"
+  ok "阶段4/7: 贡献统计获取完成"
 
   # --- 阶段5: PR + Issue (GraphQL) ---
-  local activity_json
-  activity_json=$(fetch_activity_graphql "$username") || {
+  local p5_file="${tmp_dir}/activity.json"
+  fetch_activity_graphql "$username" > "$p5_file" || {
     warn "GraphQL 活动查询失败，使用降级方案..."
-    activity_json=$(jq -n '{
-      pull_requests: { total_count: null, items: [] },
-      issues: { total_count: null, items: [] }
-    }')
+    jq -n '{pull_requests:{total_count:null,items:[]},issues:{total_count:null,items:[]}}' > "$p5_file"
   }
-  ok "阶段5/5: 活动数据获取完成"
+  ok "阶段5/7: 活动数据获取完成"
+
+  # --- 阶段6: 仓库质量快照 (REST, ~15 calls — 利用 repo:status + repo_deployment + workflow) ---
+  local p6_file="${tmp_dir}/quality.json"
+  ensure_rate_quota 20 core "REST" || true  # 质量检查非核心数据，配额不足不阻塞
+  fetch_repo_quality "$(cat "$p2_file")" 5 > "$p6_file" || {
+    warn "仓库质量检查失败，使用空数据"
+    echo '[]' > "$p6_file"
+  }
+  ok "阶段6/7: 仓库质量快照获取完成"
+
+  # --- 阶段7: 公开 Gists (REST, 1 call — 利用 gist 权限) ---
+  local p7_file="${tmp_dir}/gists.json"
+  fetch_user_gists "$username" > "$p7_file" || {
+    warn "无法获取 Gists，使用空数组"
+    echo '[]' > "$p7_file"
+  }
+  ok "阶段7/7: 公开 Gists 获取完成"
 
   # ========================================================================
   # 汇总输出
   # ========================================================================
   info "汇总所有数据..."
 
-  local final_json
-  final_json=$(merge_output "$profile_json" "$repos_json" "$orgs_json" "$contrib_json" "$activity_json" "$username")
-
-  echo "$final_json" | jq '.' > "$output_file"
+  merge_output "$tmp_dir" "$username" > "$output_file"
   ok "数据已保存至: $output_file"
 
   local file_size
@@ -653,7 +780,7 @@ main() {
   fi
 
   if [ "$to_stdout" = true ]; then
-    echo "$final_json" | jq '.'
+    cat "$output_file"
   fi
 
   # 最终速率统计（单次查询覆盖所有资源）
