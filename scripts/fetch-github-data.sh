@@ -1,12 +1,14 @@
 #!/usr/bin/env bash
 # ============================================================================
-# fetch-github-data.sh v2.2.0 — GitHub 用户数据抓取器（深度内容版）
+# fetch-github-data.sh v2.3.0 — GitHub 用户数据抓取器（深度内容版）
 #
 # 用法:
 #   export GITHUB_TOKEN="ghp_xxxx"
 #   ./fetch-github-data.sh <username>              # 输出到 output/<username>.json
 #   ./fetch-github-data.sh <username> --force       # 强制刷新（忽略缓存）
 #   ./fetch-github-data.sh <username> --stdout      # 输出到 stdout
+#   ./fetch-github-data.sh <username> --private     # 读取私有仓库（需repo scope）
+#   ./fetch-github-data.sh --private                # 自动检测+读取私有仓库
 #
 # 特性:
 #   - REST + GraphQL 混合策略，最大化利用 API 配额
@@ -14,9 +16,10 @@
 #   - 网络重试（最多 3 次，指数退避）
 #   - 幂等性：默认跳过已有结果，--force 强制刷新
 #   - 完整错误处理与友好提示
+#   - --private 模式：读取 Token 所属用户的私有仓库
 #
 # 环境变量:
-#   GITHUB_TOKEN — GitHub Personal Access Token（必填）
+#   GITHUB_TOKEN — GitHub Personal Access Token（必填；--private 需 repo 权限）
 # ============================================================================
 
 set -euo pipefail
@@ -226,7 +229,8 @@ fetch_user_profile() {
 fetch_repos_rest() {
   local username="$1"
   local max_repos="${2:-$REPO_TARGET_COUNT}"
-  info "获取仓库列表（目标: 前 ${max_repos} 个，按星标排序）"
+  local private_mode="${3:-false}"
+  info "获取仓库列表（目标: 前 ${max_repos} 个，按星标排序${private_mode:+，含私有仓库}）"
 
   local all_repos='[]' page=1
   # 开始前检查配额（最多 2 页，预留 3 次调用）
@@ -239,9 +243,13 @@ fetch_repos_rest() {
     local per_page=$([ "$remaining" -gt $REST_REPOS_PER_PAGE ] && echo $REST_REPOS_PER_PAGE || echo $remaining)
     info "  获取仓库: 第 ${page} 页 (per_page=${per_page})"
 
-    local page_data
-    page_data=$(api_call "GET" \
-      "${GITHUB_API_BASE}/users/${username}/repos?per_page=${per_page}&sort=stars&direction=desc&page=${page}") || return 1
+    local page_data repo_url
+    if [ "$private_mode" = true ]; then
+      repo_url="${GITHUB_API_BASE}/user/repos?type=all&sort=updated&direction=desc&per_page=${per_page}&page=${page}"
+    else
+      repo_url="${GITHUB_API_BASE}/users/${username}/repos?per_page=${per_page}&sort=stars&direction=desc&page=${page}"
+    fi
+    page_data=$(api_call "GET" "$repo_url") || return 1
 
     local count
     count=$(echo "$page_data" | jq 'length')
@@ -718,23 +726,25 @@ fetch_activity_events() {
 # ============================================================================
 
 main() {
-  local username="" force=false to_stdout=false
+  local username="" force=false to_stdout=false private_mode=false
 
   # 解析命令行参数
   while [ $# -gt 0 ]; do
     case "$1" in
       --force|-f) force=true; shift ;;
       --stdout|-s) to_stdout=true; shift ;;
+      --private|-p) private_mode=true; shift ;;
       --help|-h)
-        echo "用法: $0 <username> [--force] [--stdout]"
+        echo "用法: $0 <username> [--force] [--stdout] [--private]"
         echo ""
         echo "环境变量:"
-        echo "  GITHUB_TOKEN — GitHub Personal Access Token（必填）"
+        echo "  GITHUB_TOKEN — GitHub Personal Access Token（必填，--private模式需repo权限）"
         echo ""
         echo "选项:"
-        echo "  --force, -f   强制刷新（忽略已有缓存文件）"
-        echo "  --stdout, -s  输出 JSON 到 stdout（同时保存到文件）"
-        echo "  --help, -h    显示此帮助"
+        echo "  --force, -f    强制刷新（忽略已有缓存文件）"
+        echo "  --stdout, -s   输出 JSON 到 stdout（同时保存到文件）"
+        echo "  --private, -p  读取 Token 所属用户的私有仓库（需 repo scope）"
+        echo "  --help, -h     显示此帮助"
         exit 0
         ;;
       *) username="$1"; shift ;;
@@ -778,6 +788,25 @@ main() {
   fi
 
   # 无 Token 时 api_call 自动跳过认证头（配额 60次/小时）
+
+  # --private 模式：强制使用 Token 所属用户，因为 /user/repos 只能查自己
+  if [ "$private_mode" = true ]; then
+    if [ "$HAS_TOKEN" = false ]; then
+      err "--private 模式需要有效的 GITHUB_TOKEN（且需 repo 权限）"
+      exit 1
+    fi
+    local token_owner
+    token_owner=$(api_call "GET" "${GITHUB_API_BASE}/user" 2>/dev/null | jq -r '.login // ""' 2>/dev/null)
+    if [ -z "$token_owner" ] || [ "$token_owner" = "null" ]; then
+      err "--private 模式无法获取 Token 所属用户，请检查 Token 是否有效"
+      exit 1
+    fi
+    if [ -n "$username" ] && [ "$username" != "$token_owner" ]; then
+      warn "--private 模式只能读取 Token 所属用户 ($token_owner) 的私有仓库，已自动切换"
+    fi
+    username="$token_owner"
+    info "私有仓库模式: 将读取 $username 的全部仓库（含私有）"
+  fi
 
   # 检查依赖
   for cmd in curl jq; do
@@ -830,7 +859,7 @@ main() {
 
   # --- 阶段2: 仓库列表 (REST 分页, 最多 3 calls) ---
   local p2_file="${tmp_dir}/repos.json"
-  fetch_repos_rest "$username" "$REPO_TARGET_COUNT" > "$p2_file" || {
+  fetch_repos_rest "$username" "$REPO_TARGET_COUNT" "$private_mode" > "$p2_file" || {
     err "无法获取仓库列表"
     exit 4
   }
