@@ -630,10 +630,10 @@ merge_output() {
 # 贡献日历由 JS 渲染，curl 拿不到每日分布，只能提取页面中的年度总计数
 fetch_contributions_scrape() {
   local username="$1"
-  info "抓取贡献总数: https://github.com/${username}"
+  info "抓取贡献总数: /users/${username}/contributions (无认证)"
 
   local html total
-  html=$(curl -sL -H "User-Agent: Mozilla/5.0" "https://github.com/${username}" 2>/dev/null || echo "")
+  html=$(curl -sL -H "User-Agent: Mozilla/5.0" "https://github.com/users/${username}/contributions" 2>/dev/null || echo "")
 
   if [ -z "$html" ]; then
     echo '{"calendar":{"total":null,"weeks":[],"_note":"scrape_failed"},"top_commit_repos":[],"top_pr_repos":[],"_source":"scraped_profile_page"}'
