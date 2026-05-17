@@ -197,8 +197,8 @@ var shareTexts={
   x:'@{{USERNAME}} {{OVERALL_SCORE}}/100 — {{TAGLINE}} ⭐'
 };
 var shareUrls={
-  wechat:'https://web.wechat.com/',
-  qq:'https://im.qq.com/',
+  wechat:'#screenshot-only',
+  qq:'https://sns.qzone.qq.com/cgi-bin/qzshare/cgi_qzshare_onekey?url='+encodeURIComponent(REPO)+'&title=GitHub+Profiler&summary='+encodeURIComponent(shareTexts.qq)+'&site=github-profiler',
   x:'https://x.com/intent/tweet?text='+encodeURIComponent(shareTexts.x)+'&url='+encodeURIComponent(REPO)
 };
 
@@ -208,8 +208,12 @@ function shareScreenshot(platform){
     canvas.toBlob(function(blob){
       var a=document.createElement('a');a.href=URL.createObjectURL(blob);
       a.download='github-profiler-{{USERNAME}}.png';a.click();
-      showToast('截图已保存，即将跳转至分享平台...');
-      setTimeout(function(){window.open(shareUrls[platform],'_blank')},1000);
+      if(platform==='wechat'){
+        showToast('截图已保存！请打开微信，将图片发送给好友或群聊');
+      } else {
+        showToast('截图已保存，即将跳转至分享平台...');
+        setTimeout(function(){window.open(shareUrls[platform],'_blank')},1000);
+      }
     },'image/png');
   }).catch(function(e){showToast('截图失败: '+e.message)});
 }

@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GitHub Distill — @{{USERNAME}}</title>
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/echarts-wordcloud@2.1.0/dist/echarts-wordcloud.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
@@ -143,7 +144,7 @@
   var colors=['#7c3aed','#ec4899','#06b6d4','#f59e0b','#10b981','#6366f1'];
 
   // Dual radar: self vs mirror
-  (function(){var c=echarts.init(document.getElementById('chart-radar-dual'));var dims={{RADAR_DIMENSIONS}},v1={{RADAR_SELF}},v2={{RADAR_OTHER}};c.setOption({radar:{center:['50%','55%'],radius:'70%',axisName:{color:muted,fontSize:11},splitArea:{areaStyle:{color:['rgba(0,0,0,0.01)','rgba(0,0,0,0.03)']}},axisLine:{lineStyle:{color:rule}},splitLine:{lineStyle:{color:rule}},indicator:dims.map(function(d){return{name:d,max:100}})},series:[{type:'radar',data:[{value:v1,name:'真实的@{{USERNAME}}',areaStyle:{color:'rgba(124,58,237,0.12)'},lineStyle:{color:'#7c3aed',width:2},itemStyle:{color:'#7c3aed'}},{value:v2,name:'{{ALIAS}}',areaStyle:{color:'rgba(236,72,153,0.12)'},lineStyle:{color:'#ec4899',width:2,type:'dashed'},itemStyle:{color:'#ec4899'}}]}],legend:{data:['真实的@{{USERNAME}}','{{ALIAS}}'],bottom:0,textStyle:{color:muted,fontSize:11}}})})();
+  (function(){var c=echarts.init(document.getElementById('chart-radar-dual'));var dims={{RADAR_DIMENSIONS}},v1={{RADAR_SELF}},v2={{RADAR_OTHER}};c.setOption({radar:{center:['50%','55%'],radius:'70%',axisName:{color:muted,fontSize:11},splitArea:{areaStyle:{color:['rgba(0,0,0,0.01)','rgba(0,0,0,0.03)']}},axisLine:{lineStyle:{color:rule}},splitLine:{lineStyle:{color:rule}},indicator:dims.map(function(d){return{name:d,max:100}})},series:[{type:'radar',data:[{value:v1,name:'真实的@{{USERNAME}}',areaStyle:{color:'rgba(124,58,237,0.12)'},lineStyle:{color:'#7c3aed',width:2},itemStyle:{color:'#7c3aed'}},{value:v2,name:'{{ALIAS}}',areaStyle:{color:'rgba(236,72,153,0.12)'},lineStyle:{color:'#ec4899',width:2,type:'dashed'},itemStyle:{color:'#ec4899'}}]}],legend:{data:['真实的@{{USERNAME}}','{{ALIAS}}'],bottom:-5,itemGap:40,textStyle:{color:muted,fontSize:11,padding:[0,16,0,0]}}})})();
 
   // Hourly distribution
   (function(){var c=echarts.init(document.getElementById('chart-hourly'));var d={{HOURLY_DATA}};c.setOption({xAxis:{type:'category',data:['0h','','','3h','','','6h','','','9h','','','12h','','','15h','','','18h','','','21h','',''],axisLine:{lineStyle:{color:rule}},axisLabel:{color:muted,fontSize:9}},yAxis:{type:'value',axisLine:{lineStyle:{color:rule}},axisLabel:{color:muted},splitLine:{lineStyle:{color:rule}}},series:[{type:'bar',data:d,itemStyle:{color:'#7c3aed',borderRadius:[2,2,0,0]}}]})})();
@@ -173,8 +174,8 @@ var shareTexts={
   x:'🔮 @{{USERNAME}}: {{ALIAS}} ({{SIMILARITY}}%相似) — {{QUOTE}} ⭐'
 };
 var shareUrls={
-  wechat:'https://web.wechat.com/',
-  qq:'https://im.qq.com/',
+  wechat:'#screenshot-only',
+  qq:'https://sns.qzone.qq.com/cgi-bin/qzshare/cgi_qzshare_onekey?url='+encodeURIComponent(REPO)+'&title=GitHub+Profiler&summary='+encodeURIComponent(shareTexts.qq)+'&site=github-profiler',
   x:'https://x.com/intent/tweet?text='+encodeURIComponent(shareTexts.x)+'&url='+encodeURIComponent(REPO)
 };
 
@@ -184,8 +185,12 @@ function shareScreenshot(platform){
     canvas.toBlob(function(blob){
       var a=document.createElement('a');a.href=URL.createObjectURL(blob);
       a.download='github-profiler-{{USERNAME}}.png';a.click();
-      showToast('截图已保存，即将跳转至分享平台...');
-      setTimeout(function(){window.open(shareUrls[platform],'_blank')},1000);
+      if(platform==='wechat'){
+        showToast('截图已保存！请打开微信，将图片发送给好友或群聊');
+      } else {
+        showToast('截图已保存，即将跳转至分享平台...');
+        setTimeout(function(){window.open(shareUrls[platform],'_blank')},1000);
+      }
     },'image/png');
   }).catch(function(e){showToast('截图失败: '+e.message)});
 }
