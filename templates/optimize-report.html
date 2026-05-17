@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub Optimize — @{{USERNAME}}</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root{--bg:#0f0f1a;--card:#1a1a2e;--card2:#16213e;--accent:#10b981;--cyan:#06b6d4;--gold:#f59e0b;--red:#ef4444;--purple:#8b5cf6;--text:#e2e8f0;--muted:#94a3b8;--border:rgba(255,255,255,0.06);--radius:16px}
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+  .hero{text-align:center;padding:60px 24px 48px;background:radial-gradient(ellipse at 50% 0%,rgba(16,185,129,0.12) 0%,transparent 60%)}
+  .hero-avatar{width:72px;height:72px;border-radius:50%;border:3px solid var(--accent);margin-bottom:14px;box-shadow:0 0 30px rgba(16,185,129,0.2)}
+  .hero-username{font-size:32px;font-weight:800}
+  .hero-subtitle{font-size:16px;color:var(--muted);margin-top:8px}
+
+  .container{max-width:960px;margin:0 auto;padding:0 24px 80px}
+  .section{margin-top:44px}
+  .section-title{font-size:20px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+  .section-title::before{content:'';width:4px;height:22px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--cyan))}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px}
+
+  /* Priority badges */
+  .p0{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(239,68,68,0.15);color:var(--red)}
+  .p1{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(245,158,11,0.15);color:var(--gold)}
+  .p2{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;background:rgba(139,92,246,0.15);color:var(--purple)}
+
+  /* Fix list */
+  .fix-item{display:flex;align-items:flex-start;gap:16px;padding:16px 0;border-bottom:1px solid var(--border)}
+  .fix-item:last-child{border-bottom:none}
+  .fix-icon{font-size:24px;flex-shrink:0;width:36px;text-align:center}
+  .fix-content{flex:1}
+  .fix-field{font-size:13px;color:var(--muted);font-family:monospace;margin-bottom:4px}
+  .fix-why{font-size:14px;color:var(--text);margin-bottom:4px}
+  .fix-suggest{font-size:14px;color:var(--accent);font-weight:500}
+  .fix-effect{font-size:13px;color:var(--muted);margin-top:4px}
+
+  /* Repo fix table */
+  .fix-table{width:100%;border-collapse:collapse;font-size:13px}
+  .fix-table th{text-align:left;padding:10px 12px;color:var(--muted);font-weight:500;border-bottom:1px solid var(--border);font-size:11px;text-transform:uppercase;letter-spacing:0.5px}
+  .fix-table td{padding:10px 12px;border-bottom:1px solid rgba(255,255,255,0.03);vertical-align:top}
+  .fix-table tr:hover td{background:rgba(255,255,255,0.02)}
+
+  /* Roadmap */
+  .roadmap-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+  .roadmap-card{background:var(--card2);border-radius:var(--radius);padding:20px;border-top:3px solid transparent}
+  .roadmap-card.consolidate{border-top-color:var(--purple)}
+  .roadmap-card.expand{border-top-color:var(--cyan)}
+  .roadmap-card.explore{border-top-color:var(--gold)}
+  .roadmap-card.drop{border-top-color:var(--red)}
+  .roadmap-card h3{font-size:14px;margin-bottom:10px}
+  .roadmap-card p{font-size:13px;color:var(--muted);line-height:1.7}
+
+  /* Social plan */
+  .social-steps{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+  .social-step{background:var(--card2);border-radius:var(--radius);padding:20px;display:flex;gap:14px}
+  .social-step-icon{font-size:28px;flex-shrink:0}
+  .social-step-num{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+  .social-step-act{font-size:15px;font-weight:600;margin-bottom:4px}
+  .social-step-detail{font-size:13px;color:var(--muted)}
+
+  /* North Star */
+  .north-star{text-align:center;padding:40px;background:linear-gradient(135deg,rgba(16,185,129,0.08) 0%,rgba(6,182,212,0.04) 100%);border-radius:var(--radius);border:1px solid rgba(16,185,129,0.15)}
+  .north-star-num{font-size:48px;font-weight:900;color:var(--accent);letter-spacing:-2px}
+  .north-star-desc{font-size:15px;color:var(--muted);margin-top:8px;line-height:1.7}
+
+  /* One-line bio preview */
+  .bio-preview{font-size:20px;font-weight:600;text-align:center;padding:28px;background:var(--card);border-radius:var(--radius);border:1px dashed rgba(16,185,129,0.3);font-style:italic;color:var(--accent)}
+
+  /* Progress bar */
+  .progress-wrap{display:flex;align-items:center;gap:12px}
+  .progress-bar{flex:1;height:10px;background:rgba(255,255,255,0.06);border-radius:5px;overflow:hidden}
+  .progress-fill{height:100%;border-radius:5px;background:linear-gradient(90deg,var(--accent),var(--cyan));transition:width 0.8s ease}
+  .progress-pct{font-size:14px;font-weight:700;min-width:48px;text-align:right}
+
+  @media(max-width:640px){.roadmap-grid,.social-steps{grid-template-columns:1fr}}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <img class="hero-avatar" src="{{AVATAR_URL}}" alt="{{USERNAME}}" onerror="this.style.display='none'">
+  <div class="hero-username">@{{USERNAME}}</div>
+  <div class="hero-subtitle">个性化优化方案 · 基于蒸馏结果与原始数据</div>
+  <div style="margin-top:20px">
+    <div class="progress-wrap" style="max-width:400px;margin:0 auto">
+      <span style="font-size:12px;color:var(--muted)">当前完成度</span>
+      <div class="progress-bar"><div class="progress-fill" style="width:{{COMPLETENESS}}%"></div></div>
+      <div class="progress-pct">{{COMPLETENESS}}%</div>
+    </div>
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- ====== Profile 急救 ====== -->
+  <div class="section">
+    <div class="section-title">Profile 急救包 <span class="p0">本周</span></div>
+    <div class="card">
+      {{PROFILE_FIXES}}
+    </div>
+  </div>
+
+  <!-- ====== 项目打磨 ====== -->
+  <div class="section">
+    <div class="section-title">项目打磨清单</div>
+    <div class="card" style="overflow-x:auto">
+      <table class="fix-table">
+        <thead><tr><th>仓库</th><th>缺失项</th><th>修复操作</th><th>优先级</th></tr></thead>
+        <tbody>{{REPO_FIXES}}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ====== 技能路线 ====== -->
+  <div class="section">
+    <div class="section-title">技能路线图 <span class="p1">本月</span></div>
+    <div class="roadmap-grid">
+      <div class="roadmap-card consolidate">
+        <h3>🛡️ 巩固</h3>
+        <p>{{SKILL_CONSOLIDATE}}</p>
+      </div>
+      <div class="roadmap-card expand">
+        <h3>📐 扩展</h3>
+        <p>{{SKILL_EXPAND}}</p>
+      </div>
+      <div class="roadmap-card explore">
+        <h3>🌱 探索</h3>
+        <p>{{SKILL_EXPLORE}}</p>
+      </div>
+      <div class="roadmap-card drop">
+        <h3>✂️ 暂时放下</h3>
+        <p>{{SKILL_DROP}}</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 社交破冰 ====== -->
+  <div class="section">
+    <div class="section-title">社交破冰计划 <span class="p1">本月</span></div>
+    <div class="social-steps">
+      <div class="social-step">
+        <div class="social-step-icon">👤</div>
+        <div>
+          <div class="social-step-num">第一步</div>
+          <div class="social-step-act">获得第一个 Follower</div>
+          <div class="social-step-detail">{{SOCIAL_FOLLOW}}</div>
+        </div>
+      </div>
+      <div class="social-step">
+        <div class="social-step-icon">🔀</div>
+        <div>
+          <div class="social-step-num">第二步</div>
+          <div class="social-step-act">提交第一个 PR</div>
+          <div class="social-step-detail">{{SOCIAL_PR}}</div>
+        </div>
+      </div>
+      <div class="social-step">
+        <div class="social-step-icon">🏛️</div>
+        <div>
+          <div class="social-step-num">第三步</div>
+          <div class="social-step-act">加入第一个组织</div>
+          <div class="social-step-detail">{{SOCIAL_ORG}}</div>
+        </div>
+      </div>
+      <div class="social-step">
+        <div class="social-step-icon">📅</div>
+        <div>
+          <div class="social-step-num">日常节奏</div>
+          <div class="social-step-act">每周社交习惯</div>
+          <div class="social-step-detail">{{SOCIAL_RHYTHM}}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ====== 职业定位 ====== -->
+  <div class="section">
+    <div class="section-title">职业定位 <span class="p2">本季度</span></div>
+    <div class="bio-preview">"{{ONE_LINE_BIO}}"</div>
+    <div class="card" style="margin-top:16px;font-size:14px;line-height:1.8;color:var(--muted)">
+      {{CAREER_NARRATIVE}}
+    </div>
+  </div>
+
+  <!-- ====== 北极星 ====== -->
+  <div class="section">
+    <div class="section-title">北极星指标 <span class="p2">半年</span></div>
+    <div class="north-star">
+      <div class="north-star-num">{{NORTH_STAR}}</div>
+      <div class="north-star-desc">{{NORTH_STAR_DESC}}</div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ====== SHARE ====== -->
+<div class="share-bar">
+  <div class="share-inner">
+    <div class="share-title">分享这份优化方案</div>
+    <div class="share-buttons">
+      <button class="share-btn wechat" onclick="shareCopy('wechat')">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.952-7.062-6.122zm-2.18 2.769c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982z"/></svg>
+        微信
+      </button>
+      <button class="share-btn qq" onclick="shareCopy('qq')">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21.395 15.035a40.548 40.548 0 0 0-.803-2.264l-1.079-2.695c.001-.032.014-.562.014-.836C19.527 4.661 17.262 0 12 0S4.473 4.661 4.473 9.24c0 .274.013.804.014.836L3.408 12.77a39.85 39.85 0 0 0-.803 2.264c-.547 1.613-.468 3.017.607 3.314.406.112.898.007 1.355-.195.138.243.298.473.486.684 1.055 1.186 2.273 1.595 3.145 1.595.261 0 .511-.04.748-.112.268.838.935 1.489 1.76 1.793v.733c0 .426-.115.751-.327.947-.212.195-.523.297-.907.317a.516.516 0 0 0-.484.519c0 .285.232.517.517.517h8.928a.517.517 0 0 0 .517-.517.516.516 0 0 0-.484-.519c-.385-.02-.695-.122-.907-.317-.212-.196-.327-.521-.327-.947v-.733c.825-.304 1.492-.955 1.76-1.793.237.072.487.112.748.112.872 0 2.09-.409 3.145-1.595.188-.211.348-.44.486-.684.457.202.949.307 1.355.195 1.075-.297 1.154-1.701.607-3.314z"/></svg>
+        QQ
+      </button>
+      <button class="share-btn twitter" onclick="shareTwitter()">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        X
+      </button>
+      <button class="share-btn copy" onclick="shareCopy('all')">📋 复制</button>
+    </div>
+  </div>
+</div>
+
+<style>
+  .share-bar{background:linear-gradient(135deg,#1a1a2e 0%,#0f0f1a 100%);border-top:1px solid rgba(16,185,129,0.1);padding:40px 24px;text-align:center}
+  .share-inner{max-width:600px;margin:0 auto}
+  .share-title{font-size:16px;font-weight:600;color:var(--muted);margin-bottom:20px}
+  .share-buttons{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+  .share-btn{display:flex;align-items:center;gap:6px;padding:12px 20px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s}
+  .share-btn:hover{transform:translateY(-2px)}
+  .share-btn.wechat:hover{background:#07c160;border-color:#07c160;color:#fff}
+  .share-btn.qq:hover{background:#12b7f5;border-color:#12b7f5;color:#fff}
+  .share-btn.twitter:hover{background:#1d9bf0;border-color:#1d9bf0;color:#fff}
+  .share-btn.copy:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+  .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:9999;animation:toastIn 0.3s ease,toastOut 0.3s ease 2s forwards}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+  @keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+</style>
+
+<script>
+function showToast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},2500)}
+var S='📋 @{{USERNAME}} GitHub优化方案\n\n🎯 北极星: {{NORTH_STAR}}\n📝 Bio: "{{ONE_LINE_BIO}}"\n\n优化工具: github-profiler';
+function shareCopy(p){
+  var t=S;
+  if(p==='wechat')t='【GitHub优化方案】@{{USERNAME}}\n\n🎯 目标: {{NORTH_STAR}}\n📝 新Bio: "{{ONE_LINE_BIO}}"\n\n— github-profiler';
+  if(p==='qq')t='📋 @{{USERNAME}} 的GitHub优化方案\n北极星: {{NORTH_STAR}}\nBio: {{ONE_LINE_BIO}}\n\ngithub-profiler';
+  if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){showToast('已复制！')})}else{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('已复制！')}
+}
+function shareTwitter(){window.open('https://x.com/intent/tweet?text='+encodeURIComponent('🎯 GitHub优化目标: {{NORTH_STAR}}')+'&url='+encodeURIComponent('https://github.com/therain2020/github-profiler'),'_blank')}
+</script>
+
+</body>
+</html>
