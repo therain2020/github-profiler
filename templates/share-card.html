@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub Profiler Score Card</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+    background: #f5f5f5;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    padding: 20px;
+  }
+
+  .card {
+    width: 480px;
+    background: #ffffff;
+    border-radius: 16px;
+    box-shadow: 0 4px 24px rgba(0,0,0,0.08);
+    overflow: hidden;
+  }
+
+  .card-header {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    color: #ffffff;
+    padding: 28px 24px;
+    text-align: center;
+  }
+
+  .avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    border: 3px solid rgba(255,255,255,0.3);
+    margin-bottom: 12px;
+  }
+
+  .username {
+    font-size: 22px;
+    font-weight: 700;
+    letter-spacing: -0.3px;
+  }
+
+  .name {
+    font-size: 14px;
+    color: rgba(255,255,255,0.7);
+    margin-top: 4px;
+  }
+
+  .card-body {
+    padding: 24px;
+  }
+
+  .composite-score {
+    text-align: center;
+    margin-bottom: 24px;
+  }
+
+  .big-score {
+    font-size: 56px;
+    font-weight: 800;
+    line-height: 1;
+    color: #1a1a2e;
+    letter-spacing: -2px;
+  }
+
+  .big-score-label {
+    font-size: 13px;
+    color: #888;
+    margin-top: 4px;
+  }
+
+  .dimensions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    margin-bottom: 24px;
+  }
+
+  .dimension {
+    background: #f8f9fa;
+    border-radius: 10px;
+    padding: 14px;
+  }
+
+  .dim-label {
+    font-size: 12px;
+    color: #666;
+    margin-bottom: 6px;
+    font-weight: 500;
+  }
+
+  .dim-score-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .dim-score {
+    font-size: 28px;
+    font-weight: 700;
+    color: #1a1a2e;
+    min-width: 36px;
+  }
+
+  .dim-bar-bg {
+    flex: 1;
+    height: 6px;
+    background: #e0e0e0;
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .dim-bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    transition: width 0.3s;
+  }
+
+  .bar-tech { background: #4f46e5; }
+  .bar-eng  { background: #0891b2; }
+  .bar-collab { background: #059669; }
+  .bar-influ { background: #ea580c; }
+
+  .tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 20px;
+  }
+
+  .tag {
+    font-size: 12px;
+    padding: 4px 10px;
+    border-radius: 20px;
+    background: #eef2ff;
+    color: #4338ca;
+    font-weight: 500;
+  }
+
+  .summary {
+    font-size: 14px;
+    line-height: 1.6;
+    color: #444;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 10px;
+    font-style: italic;
+    border-left: 3px solid #4f46e5;
+  }
+
+  .card-footer {
+    padding: 14px 24px;
+    border-top: 1px solid #eee;
+    text-align: center;
+    font-size: 12px;
+    color: #999;
+  }
+
+  .card-footer a {
+    color: #4f46e5;
+    text-decoration: none;
+  }
+
+  .timestamp {
+    display: block;
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+
+<div class="card">
+  <div class="card-header">
+    <img class="avatar" src="{{AVATAR_URL}}" alt="{{USERNAME}}" onerror="this.src='data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect fill=%22%23667%22 width=%22100%22 height=%22100%22/><text fill=%22%23fff%22 x=%2250%22 y=%2255%22 text-anchor=%22middle%22 font-size=%2240%22>{{INITIAL}}</text></svg>'">
+    <div class="username">@{{USERNAME}}</div>
+    <div class="name">{{NAME}}</div>
+  </div>
+
+  <div class="card-body">
+    <div class="composite-score">
+      <div class="big-score">{{COMPOSITE_SCORE}}</div>
+      <div class="big-score-label">综合评分 / 5.0</div>
+    </div>
+
+    <div class="dimensions">
+      <div class="dimension">
+        <div class="dim-label">技术广度与深度</div>
+        <div class="dim-score-row">
+          <span class="dim-score">{{TECH_SCORE}}</span>
+          <div class="dim-bar-bg"><div class="dim-bar-fill bar-tech" style="width:{{TECH_PCT}}%"></div></div>
+        </div>
+      </div>
+      <div class="dimension">
+        <div class="dim-label">工程规范</div>
+        <div class="dim-score-row">
+          <span class="dim-score">{{ENGINEERING_SCORE}}</span>
+          <div class="dim-bar-bg"><div class="dim-bar-fill bar-eng" style="width:{{ENG_PCT}}%"></div></div>
+        </div>
+      </div>
+      <div class="dimension">
+        <div class="dim-label">开源协作能力</div>
+        <div class="dim-score-row">
+          <span class="dim-score">{{COLLAB_SCORE}}</span>
+          <div class="dim-bar-bg"><div class="dim-bar-fill bar-collab" style="width:{{COLLAB_PCT}}%"></div></div>
+        </div>
+      </div>
+      <div class="dimension">
+        <div class="dim-label">社区影响力</div>
+        <div class="dim-score-row">
+          <span class="dim-score">{{INFLUENCE_SCORE}}</span>
+          <div class="dim-bar-bg"><div class="dim-bar-fill bar-influ" style="width:{{INFLU_PCT}}%"></div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="tags">
+      {{TAGS}}
+    </div>
+
+    <div class="summary">
+      {{SUMMARY}}
+    </div>
+  </div>
+
+  <div class="card-footer">
+    Scored by <a href="https://github.com/your-org/github-profiler">GitHub Profiler</a>
+    <span class="timestamp">{{TIMESTAMP}}</span>
+  </div>
+</div>
+
+</body>
+</html>
