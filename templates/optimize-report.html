@@ -4,16 +4,17 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GitHub Optimize — @{{USERNAME}}</title>
-<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/qrcodejs@1.0.0/qrcode.min.js"></script>
 <style>
   :root {
     --paper: #faf8f5; --ink: #1a1a1a; --ink-muted: #6b6b6b; --ink-faint: #bababa;
     --rule: #e5e0d8; --rule-light: #f0ede6; --card-bg: #ffffff;
     --accent: #10b981; --accent2: #f59e0b; --accent3: #ef4444;
-    --font-display: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
-    --font-mono: 'JetBrains Mono', monospace;
-    --font-body: 'Noto Sans SC', -apple-system, sans-serif;
+    --font-display: Georgia, 'Times New Roman', '宋体', serif;
+    --font-mono: 'Consolas', 'Courier New', 'Microsoft YaHei', monospace;
+    --font-body: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif;
   }
   *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
   body{font-family:var(--font-body);background:var(--paper);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased}
@@ -59,26 +60,44 @@
   .phase-title{font-family:var(--font-display);font-size:16px;font-weight:700;margin-bottom:6px}
   .phase-tasks{margin-left:20px;font-size:13px;line-height:1.8}
 
-  /* Share */
-  .share-section{max-width:1100px;margin:0 auto;padding:32px 40px;border-top:1px solid var(--ink);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
-  .share-label{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-muted)}
-  .share-buttons{display:flex;gap:6px}
-  .share-btn{font-family:var(--font-mono);font-size:11px;padding:6px 14px;border:1px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer;transition:all 0.15s;letter-spacing:0.5px;display:flex;align-items:center;gap:5px}
-  .share-btn:hover{background:var(--ink);color:var(--paper)}
-  .share-btn.wechat:hover{background:#07c160;border-color:#07c160;color:#fff}
-  .share-btn.qq:hover{background:#12b7f5;border-color:#12b7f5;color:#fff}
-  .share-btn.x:hover{background:#1d9bf0;border-color:#1d9bf0;color:#fff}
+  /* Masthead share buttons */
+  .masthead-share{display:flex;gap:4px}
+  .masthead-share .share-btn{font-family:var(--font-mono);font-size:10px;padding:4px 10px;border:1px solid var(--ink-faint);background:transparent;color:var(--ink-muted);cursor:pointer;transition:all 0.15s;letter-spacing:0.5px}
+  .masthead-share .share-btn:hover{color:var(--paper)}
+  .masthead-share .share-btn.wechat:hover{background:#07c160;border-color:#07c160}
+  .masthead-share .share-btn.qq:hover{background:#12b7f5;border-color:#12b7f5}
+  .masthead-share .share-btn.x:hover{background:#1d9bf0;border-color:#1d9bf0}
   .star-footer{max-width:1100px;margin:0 auto;padding:20px 40px 60px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--rule)}
   .star-footer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--rule)}
   .star-footer a:hover{border-color:var(--ink)}
   .toast{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 28px;font-family:var(--font-mono);font-size:12px;z-index:9999;animation:toastIn .3s ease,toastOut .3s ease 2s forwards}
   @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}}
   @keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(-10px)}}
-  @media(max-width:720px){.hero{grid-template-columns:1fr}.content{grid-template-columns:1fr}.chart-box:nth-child(odd){padding-right:0;border-right:none}.chart-box:nth-child(even){padding-left:0}.masthead,.hero,.content,.share-section,.star-footer{padding-left:24px;padding-right:24px}}
+  @media(max-width:720px){.hero{grid-template-columns:1fr}.content{grid-template-columns:1fr}.chart-box:nth-child(odd){padding-right:0;border-right:none}.chart-box:nth-child(even){padding-left:0}.masthead,.hero,.content,.star-footer{padding-left:24px;padding-right:24px}}
+
+  /* QR Banner */
+  .qr-banner{background:var(--ink);color:var(--paper);padding:14px 40px;display:flex;justify-content:center;align-items:center}
+  .qr-banner-body{display:flex;align-items:center;gap:20px;max-width:1100px;width:100%;justify-content:center;flex-wrap:wrap}
+  .qr-banner-info{text-align:right}
+  .qr-banner-title{font-family:var(--font-display);font-size:20px;font-weight:900;line-height:1.2}
+  .qr-banner-sub{font-size:12px;color:var(--ink-faint);margin-top:2px}
+  .qr-banner-url{font-family:var(--font-mono);font-size:10px;color:var(--ink-muted);margin-top:3px;letter-spacing:0.5px}
+  .qr-banner-code{background:var(--paper);padding:5px;border-radius:2px;line-height:0;flex-shrink:0}
+  @media(max-width:720px){.qr-banner{padding:12px 20px}.qr-banner-info{text-align:center}}
 </style>
 </head>
 <body>
-<div class="masthead"><span>GitHub Optimize</span><span>Health Score {{HEALTH_SCORE}}/100</span></div>
+<div class="qr-banner" id="qr-banner">
+  <div class="qr-banner-body">
+    <div class="qr-banner-info">
+      <div class="qr-banner-title">GitHub Profiler</div>
+      <div class="qr-banner-sub">开源 GitHub 用户画像分析工具 &middot; 扫码即刻体验</div>
+      <div class="qr-banner-url">github.com/therain2020/github-profiler</div>
+    </div>
+    <div class="qr-banner-code" id="qr-banner-code"></div>
+  </div>
+</div>
+<div class="masthead"><span>GitHub Optimize</span><div class="masthead-share"><button class="share-btn wechat" onclick="shareScreenshot('wechat')">微信</button><button class="share-btn qq" onclick="shareScreenshot('qq')">QQ</button><button class="share-btn x" onclick="shareScreenshot('x')">X</button></div></div>
 
 <div class="hero">
   <div>
@@ -106,16 +125,6 @@
   <div class="section-label">Improvement Roadmap</div>
   <div class="roadmap">{{ROADMAP}}</div>
 </div>
-
-<div class="share-section">
-  <span class="share-label">Share this plan</span>
-  <div class="share-buttons">
-    <button class="share-btn wechat" onclick="shareCopy('wechat')">微信</button>
-    <button class="share-btn qq" onclick="shareCopy('qq')">QQ</button>
-    <button class="share-btn x" onclick="shareTwitter()">X</button>
-    <button class="share-btn" onclick="shareCopy('all')">复制</button>
-  </div>
-</div>
 <div class="star-footer">
   <span>&copy; GitHub Profiler</span>
   <a href="https://github.com/therain2020/github-profiler" target="_blank" rel="noopener">Star on GitHub &rarr;</a>
@@ -138,9 +147,37 @@
 
 function showToast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},2500)}
 var REPO='https://github.com/therain2020/github-profiler';
-var S='📋 @{{USERNAME}} GitHub优化方案\n\n健康度 {{HEALTH_SCORE}}/100\n\n⭐ Star us: '+REPO;
-function shareCopy(p){var t=S;if(p==='wechat')t='【GitHub优化】@{{USERNAME}} 健康度 {{HEALTH_SCORE}}/100\n\n已生成个性化成长方案\n\n— github-profiler\n⭐ 求 Star: '+REPO;if(p==='qq')t='📋 @{{USERNAME}}: 健康度 {{HEALTH_SCORE}}/100\n已生成个性化优化方案\n\n⭐ Star: '+REPO;if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){showToast('Copied')})}else{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('Copied')}}
-function shareTwitter(){window.open('https://x.com/intent/tweet?text='+encodeURIComponent('📋 @{{USERNAME}} GitHub优化方案 健康度 {{HEALTH_SCORE}}/100 ⭐')+'&url='+encodeURIComponent(REPO),'_blank')}
+
+/* ── QR banner init ── */
+new QRCode(document.getElementById('qr-banner-code'),{text:REPO,width:80,height:80,colorDark:'#1a1a1a',colorLight:'#faf8f5'});
+
+/* ── Full-page screenshot ── */
+function captureScreenshot(){
+  return html2canvas(document.body,{scale:2,backgroundColor:'#faf8f5',allowTaint:false,useCORS:false,logging:false});
+}
+
+var shareTexts={
+  wechat:'【GitHub优化】@{{USERNAME}} 健康度 {{HEALTH_SCORE}}/100\n\n已生成个性化成长方案\n\n— github-profiler\n⭐ 求 Star: '+REPO,
+  qq:'📋 @{{USERNAME}}: 健康度 {{HEALTH_SCORE}}/100\n已生成个性化优化方案\n\n⭐ Star: '+REPO,
+  x:'📋 @{{USERNAME}} GitHub优化方案 健康度 {{HEALTH_SCORE}}/100 ⭐'
+};
+var shareUrls={
+  wechat:'https://web.wechat.com/',
+  qq:'https://im.qq.com/',
+  x:'https://x.com/intent/tweet?text='+encodeURIComponent(shareTexts.x)+'&url='+encodeURIComponent(REPO)
+};
+
+function shareScreenshot(platform){
+  showToast('正在生成长截图...');
+  captureScreenshot().then(function(canvas){
+    canvas.toBlob(function(blob){
+      var a=document.createElement('a');a.href=URL.createObjectURL(blob);
+      a.download='github-profiler-{{USERNAME}}.png';a.click();
+      showToast('截图已保存，即将跳转至分享平台...');
+      setTimeout(function(){window.open(shareUrls[platform],'_blank')},1000);
+    },'image/png');
+  }).catch(function(e){showToast('截图失败: '+e.message)});
+}
 </script>
 </body>
 </html>
