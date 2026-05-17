@@ -31,25 +31,30 @@ repl = {
     '{{USERNAME}}': username,
     '{{CALENDAR_DATA}}': json.dumps(cal_data),
     '{{CALENDAR_MAX}}': str(cal_max),
-    '{{CALENDAR_RANGE}}': '2025-05-17-2026-05-17',
+    '{{CALENDAR_RANGE}}': json.dumps(["2025-05-17", "2026-05-17"]),
     '{{LANGUAGE_DATA}}': json.dumps(lang_data),
 }
 
-# ── Quality radar (from deep_dive) ──
-quality_data = []
+# ── Quality radar (mean across all deep_dive repos) ──
+quality_raw = {'has_readme': [], 'commit_count': [], 'avg_commit_msg_len': [], 'issue_count': [], 'readme_bytes': []}
 for q in data.get('deep_dive', []):
     qm = q.get('quality', {})
-    readme_bytes = qm.get('readme_bytes', 0)
-    quality_data.append({
-        'name': q['repo'].split('/')[-1],
-        'value': [
-            qm.get('has_readme', 0),
-            min(qm.get('commit_count', 0) * 100 // 30, 100),
-            min(qm.get('avg_commit_msg_len', 0) * 100 // 60, 100),
-            min(qm.get('issue_count', 0) * 100 // 10, 100),
-            min(readme_bytes * 100 // 5000, 100),
-        ]
-    })
+    quality_raw['has_readme'].append(qm.get('has_readme', 0))
+    quality_raw['commit_count'].append(min(qm.get('commit_count', 0) * 100 // 30, 100))
+    quality_raw['avg_commit_msg_len'].append(min(qm.get('avg_commit_msg_len', 0) * 100 // 60, 100))
+    quality_raw['issue_count'].append(min(qm.get('issue_count', 0) * 100 // 10, 100))
+    quality_raw['readme_bytes'].append(min(qm.get('readme_bytes', 0) * 100 // 5000, 100))
+n_repos = max(len(quality_raw['has_readme']), 1)
+quality_data = [{
+    'name': '10仓库均值',
+    'value': [
+        sum(quality_raw['has_readme']) // n_repos,
+        sum(quality_raw['commit_count']) // n_repos,
+        sum(quality_raw['avg_commit_msg_len']) // n_repos,
+        sum(quality_raw['issue_count']) // n_repos,
+        sum(quality_raw['readme_bytes']) // n_repos,
+    ]
+}]
 repl['{{QUALITY_DATA}}'] = json.dumps(quality_data)
 
 # ════════════════════════════════════════════════════════════════════
