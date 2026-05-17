@@ -260,7 +260,7 @@ fetch_repos_rest() {
     slim_page=$(echo "$page_data" | jq '[.[] | {
       name, full_name, description, html_url,
       language, stargazers_count, forks_count,
-      fork, topics: (.topics // []), pushed_at
+      fork, private: (.private // false), topics: (.topics // []), pushed_at
     }]')
 
     all_repos=$(echo "$all_repos" "$slim_page" | jq -s '.[0] + .[1]')
