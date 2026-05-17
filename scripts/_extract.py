@@ -23,47 +23,172 @@ def compact_contributions(data):
     cal['active_days'] = active_days
     cal.pop('weeks', None)
 
-def trim_readme(text):
-    """For README > 3KB: keep title line, heading skeleton, first+last paragraphs."""
+def _compress_inline(line):
+    """Strip inline markdown formatting: HTML, images, links, bold, italic, code."""
+    line = re.sub(r'<[^>]+>', '', line)
+    # Discard all images: [![alt](img-url)](link-url) and ![alt](url)
+    line = re.sub(r'\[!\[[^\]]*\]\([^)]*\)\]\([^)]*\)', '', line)
+    line = re.sub(r'!\[[^\]]*\]\([^)]*\)', '', line)
+    # Links: keep text, discard URL
+    line = re.sub(r'\[([^\]]+)\]\([^)]+\)', r'\1', line)
+    line = re.sub(r'\*\*(.+?)\*\*|__(.+?)__', r'\1\2', line)
+    line = re.sub(r'\*(.+?)\*|_(.+?)_', r'\1\2', line)
+    line = re.sub(r'`([^`]+)`', r'\1', line)
+    return line.strip()
+
+def _first_sentence(text):
+    """Keep up to first sentence terminator (. 。! ！), or first 120 chars if no terminator."""
+    m = re.search(r'[^。.!！\n]+[。.!！]', text)
+    if m:
+        s = m.group(0).rstrip()
+        if len(s) < len(text.strip()):
+            return s
+    # No sentence terminator found — cap at 120 chars
+    t = text.strip()
+    if len(t) > 120:
+        return t[:120] + '...'
+    return t
+
+def _compress_code_block(lines):
+    """Keep all lines if <=8, else keep first 4 + last 2."""
+    n = len(lines)
+    if n <= 8:
+        return [f'  | {l}' for l in lines]
+    head = [f'  | {l}' for l in lines[:4]]
+    tail = [f'  | {l}' for l in lines[-2:]]
+    return head + [f'  | [... {n - 6} lines ...]'] + tail
+
+def smart_compress_readme(text):
+    """Compress README > 3KB: keep emphasized content (headings, lists, code, tables),
+    heavily compress plain paragraphs to first sentence. Output as plaintext."""
     if len(text or '') <= 3000:
         return text
 
     lines = text.split('\n')
-    heading_re = re.compile(r'^#{1,4}\s')
-    result = []
-    intro_done = False
+    out = []
+    state = 'NORMAL'       # NORMAL | CODE_BLOCK | TABLE
+    code_buf = []           # accumulate code block lines
+    table_header = None     # first table row (header)
+    table_rows = 0          # body row count
+    pending_blank = False
+
+    heading_re = re.compile(r'^#{1,6}\s')
+    list_re = re.compile(r'^(\s*)[-*+]\s+')
+    num_list_re = re.compile(r'^(\s*)\d+\.\s+')
+    fence_re = re.compile(r'^\s*```')
+    table_re = re.compile(r'^\|.*\|$')
+    hr_re = re.compile(r'^[-*_]{3,}\s*$')
+    bq_re = re.compile(r'^\s*>\s?')
 
     for line in lines:
-        if not intro_done:
-            result.append(line)
-            if len(''.join(result)) >= 100:
-                intro_done = True
-        if heading_re.match(line.strip()):
-            result.append(line)
+        stripped = line.strip()
 
-    tail = []
-    for line in reversed(lines):
-        if line.strip() == '':
-            if tail:
-                break
-        else:
-            tail.insert(0, line)
-            if len(''.join(tail)) > 300:
-                break
+        # ── CODE_BLOCK state ──
+        if state == 'CODE_BLOCK':
+            if fence_re.match(stripped):
+                out.append('[CODE]')
+                out.extend(_compress_code_block(code_buf))
+                out.append('')
+                state = 'NORMAL'
+                code_buf = []
+            else:
+                code_buf.append(line)
+            continue
 
-    result.append('')
-    result.append('[...]')
-    result.extend(tail)
-    return '\n'.join(result)
+        # ── TABLE state ──
+        if state == 'TABLE':
+            if table_re.match(stripped):
+                table_rows += 1
+            else:
+                out.append(f'  {_compress_inline(table_header)}')
+                out.append(f'  [TABLE: {table_rows} rows]')
+                out.append('')
+                state = 'NORMAL'
+                table_header = None
+                table_rows = 0
+            if state == 'TABLE':
+                continue
+
+        # ── NORMAL state ──
+
+        # Fence start → enter CODE_BLOCK
+        if fence_re.match(stripped):
+            state = 'CODE_BLOCK'
+            code_buf = []
+            continue
+
+        # Table row → enter TABLE
+        if table_re.match(stripped):
+            state = 'TABLE'
+            table_header = stripped
+            table_rows = 0
+            continue
+
+        # Heading
+        if heading_re.match(stripped):
+            if pending_blank:
+                out.append('')
+                pending_blank = False
+            out.append(_compress_inline(re.sub(r'^#{1,6}\s+', '', stripped)))
+            out.append('')
+            continue
+
+        # List item
+        lm = list_re.match(line) or num_list_re.match(line)
+        if lm:
+            indent = '  ' * (len(lm.group(1)) // 2 + 1)
+            content = _compress_inline(line[lm.end():])
+            out.append(f'{indent}{content}')
+            pending_blank = False
+            continue
+
+        # Blockquote
+        if bq_re.match(stripped):
+            content = _compress_inline(bq_re.sub('', stripped))
+            out.append(f'"{content}"')
+            pending_blank = False
+            continue
+
+        # Horizontal rule
+        if hr_re.match(stripped):
+            continue
+
+        # Blank line
+        if stripped == '':
+            pending_blank = True
+            continue
+
+        # Paragraph — first sentence only
+        if pending_blank:
+            out.append('')
+            pending_blank = False
+        compressed = _compress_inline(stripped)
+        if compressed:
+            s = _first_sentence(compressed)
+            out.append(s)
+
+    # Drain pending TABLE
+    if state == 'TABLE' and table_header:
+        out.append(f'  {_compress_inline(table_header)}')
+        out.append(f'  [TABLE: {table_rows} rows]')
+    # Drain pending CODE_BLOCK (unclosed fence — keep as plain)
+    if state == 'CODE_BLOCK' and code_buf:
+        out.append('[CODE]')
+        out.extend(_compress_code_block(code_buf))
+
+    return '\n'.join(out).strip()
 
 def compact_readmes(data):
-    """Trim READMEs > 3KB in deep_dive."""
+    """Smart-compress READMEs > 3KB in deep_dive: keep emphasized, compress paragraphs."""
     for repo in data.get('deep_dive', []):
         if not repo:
             continue
         text = repo.get('readme', '') or ''
         if text:
-            repo['readme'] = trim_readme(text)
+            compressed = smart_compress_readme(text)
+            repo['readme'] = compressed
+            if compressed != text:
+                repo.setdefault('quality', {})['_compressed'] = True
 
 def compact_commits(data):
     """Keep only headline (first line) of commit messages."""
