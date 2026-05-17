@@ -8,11 +8,11 @@
 
 ```bash
 # 1. 克隆仓库
-git clone https://github.com/<your-org>/github-profiler.git
+git clone https://github.com/therain2020/github-profiler.git
 cd github-profiler
 
-# 2. 设置 Token
-export GITHUB_TOKEN="ghp_xxxx"
+# 2. 一键配置 Token（自动复用 gh CLI 或引导创建）
+bash scripts/setup.sh --persist
 
 # 3. 安装 Skill 到 Claude Code
 cp SKILL.md ~/.claude/skills/github-scorer/SKILL.md

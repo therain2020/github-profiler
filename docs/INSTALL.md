@@ -42,20 +42,22 @@ mkdir -p ~/.claude/skills/github-scorer
 cp SKILL.md ~/.claude/skills/github-scorer/SKILL.md
 ```
 
-### 3. 设置环境变量
+### 3. 一键配置 Token
 
-**Windows (PowerShell):**
-```powershell
-[Environment]::SetEnvironmentVariable('GITHUB_TOKEN', 'ghp_your_token_here', 'User')
-```
+运行自动化配置脚本：
 
-**macOS / Linux:**
 ```bash
-echo 'export GITHUB_TOKEN="ghp_your_token_here"' >> ~/.bashrc
-source ~/.bashrc
+bash scripts/setup.sh --persist
 ```
 
-重启终端（或 Claude Code）后生效。验证：
+脚本会自动按优先级选择最佳方式：
+1. **已安装 `gh` CLI 且已登录** → 直接复用 `gh auth token`（零操作）
+2. **无 `gh` CLI** → 引导 `gh auth login`（一条命令 OAuth 登录）
+3. **手动输入** → 自动打开浏览器到 Token 创建页，粘贴即可
+
+`--persist` 参数会将 Token 写入 `~/.bashrc`（或 `~/.zshrc`），重启终端后永久生效。
+
+验证：
 
 ```bash
 curl -s -H "Authorization: Bearer $GITHUB_TOKEN" https://api.github.com/user | jq .login
