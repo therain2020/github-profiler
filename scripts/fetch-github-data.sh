@@ -31,7 +31,9 @@ readonly PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
 readonly OUTPUT_DIR="${PROJECT_DIR}/output"
 readonly MAX_RETRIES=3
 readonly RETRY_DELAY_SEC=5
-readonly RATE_LIMIT_BUFFER=50       # 剩余点数低于此值则等待
+# 有 Token 时缓冲较高（配额 5000/hr），无 Token 时降低（配额 60/hr）
+RATE_LIMIT_BUFFER=50
+[ -z "${GITHUB_TOKEN:-}" ] && RATE_LIMIT_BUFFER=5
 readonly GRAPHQL_MAX_REPOS=30       # GraphQL 单次拉取仓库数（避免过重）
 readonly REST_REPOS_PER_PAGE=100    # REST 每页仓库数
 readonly REPO_TARGET_COUNT=100      # 目标仓库总数
@@ -63,10 +65,11 @@ api_call() {
   local method="$1" url="$2" body="${3:-}" tmpfile curl_exit http_code
   tmpfile=$(mktemp)
   local curl_args=(-s -w "%{http_code}" -o "$tmpfile"
-    -H "Authorization: Bearer ${GITHUB_TOKEN}"
     -H "Accept: application/vnd.github+json"
     -H "X-GitHub-Api-Version: 2022-11-28"
   )
+  # 有 Token 时才添加认证头（无 Token 使用无认证访问，配额 60 次/小时）
+  [ -n "${GITHUB_TOKEN:-}" ] && curl_args+=(-H "Authorization: Bearer ${GITHUB_TOKEN}")
 
   [ "$method" != "GET" ] && curl_args+=(-X "$method")
   [ -n "$body" ] && curl_args+=(-d "$body")
@@ -620,6 +623,82 @@ merge_output() {
 }
 
 # ============================================================================
+# 无 Token 降级函数 — 用公开网页 + Events API 填补数据缺口
+# ============================================================================
+
+# 抓取 GitHub 个人主页获取贡献总数（替代 GraphQL contributionCalendar）
+# 贡献日历由 JS 渲染，curl 拿不到每日分布，只能提取页面中的年度总计数
+fetch_contributions_scrape() {
+  local username="$1"
+  info "抓取贡献总数: https://github.com/${username}"
+
+  local html total
+  html=$(curl -sL -H "User-Agent: Mozilla/5.0" "https://github.com/${username}" 2>/dev/null || echo "")
+
+  if [ -z "$html" ]; then
+    echo '{"calendar":{"total":null,"weeks":[],"_note":"scrape_failed"},"top_commit_repos":[],"top_pr_repos":[],"_source":"scraped_profile_page"}'
+    return 0
+  fi
+
+  # 提取 <h2 ...> N contributions in the last year </h2> 中的数字
+  # h2 内部格式: 第一行是标签(含tabindex数字)，数字在后续行独立出现
+  total=$(echo "$html" | awk '/js-contribution-activity-description/,/\/h2/' | tail -n +2 | grep -oP '\d+' | head -1 || echo "")
+  [ -z "$total" ] && total="null"
+
+  jq -n --arg total "$total" '{
+    total_commit_contributions: null,
+    total_issue_contributions: null,
+    total_pr_contributions: null,
+    total_review_contributions: null,
+    restricted_contributions: null,
+    calendar: {
+      total: (if $total == "null" then null else ($total | tonumber) end),
+      weeks: [],
+      _note: "no_token: daily_detail_requires_graphql"
+    },
+    top_commit_repos: [],
+    top_pr_repos: [],
+    _source: "scraped_profile_page"
+  }'
+}
+
+# 从 Events API 获取最近活动（替代 GraphQL PR/Issue 查询）
+# 无认证可用，60次/小时，返回最近 90 天最多 300 条事件
+fetch_activity_events() {
+  local username="$1"
+  info "获取公开事件流 (Events API): $username"
+
+  local events
+  events=$(api_call "GET" "${GITHUB_API_BASE}/users/${username}/events/public?per_page=100" 2>/dev/null || echo '[]')
+
+  echo "$events" | jq '{
+    pull_requests: {
+      total_count: ([.[] | select(.type == "PullRequestEvent")] | length),
+      items: [.[] | select(.type == "PullRequestEvent") | {
+        title: .payload.pull_request.title,
+        state: .payload.pull_request.state,
+        merged: .payload.pull_request.merged,
+        repo: .repo.name,
+        created_at: .created_at,
+        merged_at: .payload.pull_request.merged_at,
+        closed_at: .payload.pull_request.closed_at
+      }]
+    },
+    issues: {
+      total_count: ([.[] | select(.type == "IssuesEvent")] | length),
+      items: [.[] | select(.type == "IssuesEvent") | {
+        title: .payload.issue.title,
+        state: .payload.issue.state,
+        repo: .repo.name,
+        created_at: .created_at,
+        closed_at: .payload.issue.closed_at
+      }]
+    },
+    _source: "events_api_90d"
+  }'
+}
+
+# ============================================================================
 # 主流程
 # ============================================================================
 
@@ -653,19 +732,19 @@ main() {
     exit 1
   fi
 
-  # Token 校验
+  # Token 检测与降级标记
+  local HAS_TOKEN=true
   if [ -z "${GITHUB_TOKEN:-}" ]; then
-    err "环境变量 GITHUB_TOKEN 未设置。"
-    err "请前往 https://github.com/settings/tokens 创建 Token（无需任何权限 scope）"
-    err "然后执行: export GITHUB_TOKEN=\"ghp_xxxx\""
-    exit 1
+    warn "GITHUB_TOKEN 未设置，将以无认证模式运行（数据覆盖度 ~75%）"
+    warn "  缺失：贡献总数/日历（改为页面抓取估算）、仓库质量快照、PR/Issue 详情"
+    warn "  设置 Token 可获得完整数据: export GITHUB_TOKEN=\"ghp_xxxx\""
+    HAS_TOKEN=false
+  elif ! [[ "$GITHUB_TOKEN" =~ ^(ghp_|github_pat_|gho_) ]]; then
+    warn "GITHUB_TOKEN 格式不常见，将以无认证模式运行"
+    HAS_TOKEN=false
   fi
 
-  # 验证 Token 格式
-  if ! [[ "$GITHUB_TOKEN" =~ ^(ghp_|github_pat_|gho_) ]]; then
-    warn "GITHUB_TOKEN 格式看起来不常见，请确认 Token 正确"
-    warn "如果后续请求全部失败，请检查 Token"
-  fi
+  # 无 Token 时 api_call 自动跳过认证头（配额 60次/小时）
 
   # 检查依赖
   for cmd in curl jq; do
@@ -732,37 +811,54 @@ main() {
   }
   ok "阶段3/7: 组织列表获取完成"
 
-  # --- 阶段4: 贡献统计 (GraphQL) ---
+  # --- 阶段4: 贡献统计 (GraphQL 优先，无 Token 时抓取网页) ---
   local p4_file="${tmp_dir}/contrib.json"
-  fetch_contributions_graphql "$username" > "$p4_file" || {
-    warn "GraphQL 贡献查询失败，使用降级方案..."
-    jq -n '{total_commit_contributions:null,total_issue_contributions:null,total_pr_contributions:null,total_review_contributions:null,restricted_contributions:null,calendar:{total:null,weeks:[]},top_commit_repos:[],top_pr_repos:[]}' > "$p4_file"
-  }
+  if [ "$HAS_TOKEN" = true ]; then
+    fetch_contributions_graphql "$username" > "$p4_file" || {
+      warn "GraphQL 贡献查询失败，尝试页面抓取..."
+      fetch_contributions_scrape "$username" > "$p4_file"
+    }
+  else
+    fetch_contributions_scrape "$username" > "$p4_file"
+  fi
   ok "阶段4/7: 贡献统计获取完成"
 
-  # --- 阶段5: PR + Issue (GraphQL) ---
+  # --- 阶段5: PR + Issue (GraphQL 优先，无 Token 时 Events API) ---
   local p5_file="${tmp_dir}/activity.json"
-  fetch_activity_graphql "$username" > "$p5_file" || {
-    warn "GraphQL 活动查询失败，使用降级方案..."
-    jq -n '{pull_requests:{total_count:null,items:[]},issues:{total_count:null,items:[]}}' > "$p5_file"
-  }
+  if [ "$HAS_TOKEN" = true ]; then
+    fetch_activity_graphql "$username" > "$p5_file" || {
+      warn "GraphQL 活动查询失败，使用 Events API 降级方案..."
+      fetch_activity_events "$username" > "$p5_file"
+    }
+  else
+    fetch_activity_events "$username" > "$p5_file"
+  fi
   ok "阶段5/7: 活动数据获取完成"
 
-  # --- 阶段6: 仓库质量快照 (REST, ~15 calls — 利用 repo:status + repo_deployment + workflow) ---
+  # --- 阶段6: 仓库质量快照 (需 Token: repo:status + repo_deployment + workflow) ---
   local p6_file="${tmp_dir}/quality.json"
-  ensure_rate_quota 20 core "REST" || true  # 质量检查非核心数据，配额不足不阻塞
-  fetch_repo_quality "$(cat "$p2_file")" 5 > "$p6_file" || {
-    warn "仓库质量检查失败，使用空数据"
+  if [ "$HAS_TOKEN" = true ]; then
+    ensure_rate_quota 20 core "REST" || true
+    fetch_repo_quality "$(cat "$p2_file")" 5 > "$p6_file" || {
+      warn "仓库质量检查失败，使用空数据"
+      echo '[]' > "$p6_file"
+    }
+  else
+    info "阶段6/7: 仓库质量快照（需 Token，跳过）"
     echo '[]' > "$p6_file"
-  }
+  fi
   ok "阶段6/7: 仓库质量快照获取完成"
 
-  # --- 阶段7: 公开 Gists (REST, 1 call — 利用 gist 权限) ---
+  # --- 阶段7: 公开 Gists (需 Token: gist 权限) ---
   local p7_file="${tmp_dir}/gists.json"
-  fetch_user_gists "$username" > "$p7_file" || {
-    warn "无法获取 Gists，使用空数组"
+  if [ "$HAS_TOKEN" = true ]; then
+    fetch_user_gists "$username" > "$p7_file" || {
+      warn "无法获取 Gists，使用空数组"
+      echo '[]' > "$p7_file"
+    }
+  else
     echo '[]' > "$p7_file"
-  }
+  fi
   ok "阶段7/7: 公开 Gists 获取完成"
 
   # ========================================================================

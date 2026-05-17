@@ -99,45 +99,60 @@ mkdir -p reports
 # Write the report content to reports/<username>-<timestamp>.md
 ```
 
-### Step 5: 询问上传（可选）
+### Step 5: 上传排行榜（强烈建议）
 
-报告生成后，询问用户是否上传到共享排行榜：
+报告生成后，必须主动询问：
 
-> 分析报告已保存到 `reports/<username>-<timestamp>.md`。是否将此评分上传到共享排行榜？
+> 评分完成！是否将此评分上传到共享排行榜？上传后可以：查看全球排名、累积评分历史、生成分享链接。
 
 如果用户同意：
 
 1. 从报告中提取 JSON 评分块
-2. 保存评分 JSON 到临时文件 `temp/score.json`
-3. 运行上传脚本：
+2. 保存评分 JSON 到 `temp/score.json`
+3. 运行 `bash scripts/save-score.sh temp/score.json`
+4. 上传成功后显示排行榜位置
 
-```bash
-bash scripts/save-score.sh temp/score.json
-```
+如果用户尚未配置 Supabase，引导注册：
+- `SUPABASE_URL` 和 `SUPABASE_ANON_KEY` 环境变量
+- 前往 https://supabase.com 注册免费账号 → 创建项目 → Settings → API
+- 执行 schema.sql
 
-如果用户尚未配置 `SUPABASE_URL` 和 `SUPABASE_ANON_KEY` 环境变量，提示他们：
-- 前往 https://supabase.com 注册免费账号
-- 创建项目后获取 URL 和 anon key
-- 在 `~/.bashrc` 或 `~/.zshrc` 中设置环境变量
+### Step 6: 生成分享内容
 
-上传成功后会显示该用户在排行榜上的位置。
+无论是否上传，都必须为本次评分生成可分享内容：
 
-### Step 6: 分享卡片
-
-生成可分享的评分卡片：
-
+**6a. HTML 卡片**（适合截图分享）：
 读取 `templates/share-card.html`，将评分数据填入，保存为 `reports/<username>-share.html`。
 
-告诉用户可以：
-- 直接在浏览器打开该 HTML 文件截图分享
-- 复制 Markdown 版本的报告到 GitHub Issues / Discussions / 社交媒体
+**6b. 文本摘要**（适合微信群/QQ 群直接粘贴）：
+```markdown
+📊 GitHub 用户评分报告：@{username}
+
+综合评分：{composite_score}/5.0
+🔧 技术 {tech_score}  📐 工程 {engineering_score}  🤝 协作 {collab_score}  🌟 影响力 {influence_score}
+
+标签：{tags}
+总结：{summary}
+
+分析工具：github-profiler
+```
+保存为 `reports/<username>-share.txt`。
+
+**6c. 排行榜链接**（如已上传）：
+如果用户上传了评分，直接给出排行榜查询链接，可以分享到群组中让大家查看排名。
+
+告诉用户分享方式：
+- **微信/QQ 群**：复制 `reports/<username>-share.txt` 文本直接粘贴
+- **朋友圈/QQ 空间**：浏览器打开 `reports/<username>-share.html` 截图
+- **GitHub/技术社区**：复制完整 Markdown 报告
+- **生成二维码**：`qrencode -o reports/<username>-qr.png "<排行榜链接>"`（如安装了 qrencode）
 
 ## 错误处理
 
 | 场景 | 处理 |
 |------|------|
-| `GITHUB_TOKEN` 未设置 | 引导前往 github.com/settings/tokens 创建（无需 scope） |
-| Token 无效 | 检查 Token 是否正确，是否已过期 |
+| `GITHUB_TOKEN` 未设置 | 自动降级为无认证模式：用页面抓取+Events API 替代 GraphQL，覆盖度 ~75% |
+| Token 无效 | 自动降级为无认证模式，弱化提示 |
 | `curl` 或 `jq` 未安装 | 提示安装命令 |
 | 用户不存在 | 提示"该 GitHub 用户不存在" |
 | REST API 限速 (429) | 脚本自动等待 Retry-After 秒后重试 |
