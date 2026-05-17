@@ -59,13 +59,17 @@ def trim_readme(text):
 def compact_readmes(data):
     """Trim READMEs > 3KB in deep_dive."""
     for repo in data.get('deep_dive', []):
-        text = repo.get('readme', '')
+        if not repo:
+            continue
+        text = repo.get('readme', '') or ''
         if text:
             repo['readme'] = trim_readme(text)
 
 def compact_commits(data):
     """Keep only headline (first line) of commit messages."""
     for repo in data.get('deep_dive', []):
+        if not repo:
+            continue
         for c in repo.get('commits', []):
             msg = c.get('message', '')
             if '\n' in msg:
@@ -74,6 +78,8 @@ def compact_commits(data):
 def compact_repositories(data):
     """Drop derivable fields: html_url, full_name, pushed_at."""
     for repo in data.get('repositories', []):
+        if not repo:
+            continue
         repo.pop('html_url', None)
         repo.pop('full_name', None)
         repo.pop('pushed_at', None)

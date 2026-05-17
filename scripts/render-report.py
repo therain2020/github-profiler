@@ -23,6 +23,7 @@ cal_max = max((c for _, c in cal_data), default=1)
 
 lang_counts = {}
 for r in data.get('repositories', []):
+    if not r: continue
     l = r.get('language') or 'Unknown'
     lang_counts[l] = lang_counts.get(l, 0) + 1
 lang_data = [{'name': k, 'value': v} for k, v in sorted(lang_counts.items(), key=lambda x: -x[1])]
@@ -38,6 +39,7 @@ repl = {
 # ── Quality radar (mean across all deep_dive repos) ──
 quality_raw = {'has_readme': [], 'commit_count': [], 'avg_commit_msg_len': [], 'issue_count': [], 'readme_bytes': []}
 for q in data.get('deep_dive', []):
+    if not q: continue
     qm = q.get('quality', {})
     quality_raw['has_readme'].append(qm.get('has_readme', 0))
     quality_raw['commit_count'].append(min(qm.get('commit_count', 0) * 100 // 30, 100))
