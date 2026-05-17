@@ -47,12 +47,22 @@ bash scripts/fetch-github-data.sh <username>
 2. 读取 `templates/distill-prompt.md` 蒸馏提示词
 3. 将 `{{USERNAME}}` → 实际用户名，`{{GITHUB_DATA}}` → JSON 数据
 4. 按四层结构输出：人物画像 → 技术 DNA → 隐藏自我 → RPG 角色卡 → 最终蒸馏物
+5. **必须输出 JSON 蒸馏块（嵌入报告末尾）**
 
-### Step 3: 生成报告
+### Step 3: 生成可视化 HTML 报告（必须）
 
+**蒸馏 JSON 生成后，必须用 `render-report.py` 生成可视化 HTML。不能只在对话中输出文字。**
+
+```bash
+# 1. 将蒸馏 JSON 与原始数据合并
+jq -s '.[0] * {profile:.[1].profile,repositories:.[1].repositories,quality:.[1].quality,contributions:.[1].contributions,activity:.[1].activity,organizations:.[1].organizations,gists:.[1].gists}' \
+  temp/distill.json output/<username>.json > temp/distill-input.json
+
+# 2. 渲染 HTML
+python scripts/render-report.py temp/distill-input.json distill
 ```
-reports/<username>-distill-<timestamp>.md
-```
+
+输出文件：`reports/<username>-distill-<timestamp>.html`（含 ECharts 图表 + RPG 角色卡 + 分享按钮）
 
 ### Step 4 (可选): 基于蒸馏结果的自我优化
 

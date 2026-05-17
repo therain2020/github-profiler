@@ -47,7 +47,11 @@ command -v curl && command -v jq && echo "环境就绪"
 运行数据获取脚本（输出到 `output/<username>.json`）：
 
 ```bash
+# 分析指定用户
 bash scripts/fetch-github-data.sh <username>
+
+# Token 已设置但未指定用户时，自动检测 Token 所属用户
+bash scripts/fetch-github-data.sh
 ```
 
 脚本特性：
@@ -89,15 +93,20 @@ bash scripts/fetch-github-data.sh <username>
 - 必须包含"局限性提示"部分
 - 输出 JSON 评分块（嵌入报告末尾）
 
-### Step 4: 保存本地报告
+### Step 4: 生成可视化 HTML 报告（必须）
 
-将分析报告保存到 `reports/` 目录：
+**评分 JSON 生成后，必须用 `render-report.py` 生成可视化 HTML 文件。不能只在对话中输出文字。**
 
 ```bash
-TIMESTAMP=$(date +%Y%m%d-%H%M%S)
-mkdir -p reports
-# Write the report content to reports/<username>-<timestamp>.md
+# 1. 将评分 JSON 与原始数据合并
+jq -s '.[0] * {profile:.[1].profile,repositories:.[1].repositories,quality:.[1].quality,contributions:.[1].contributions,activity:.[1].activity,organizations:.[1].organizations,gists:.[1].gists}' \
+  temp/score.json output/<username>.json > temp/scorer-input.json
+
+# 2. 渲染 HTML
+python scripts/render-report.py temp/scorer-input.json scorer
 ```
+
+输出文件：`reports/<username>-scorer-<timestamp>.html`（含 ECharts 图表 + 微信/QQ/X 分享按钮）
 
 ### Step 5: 上传排行榜（强烈建议）
 

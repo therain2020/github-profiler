@@ -726,22 +726,40 @@ main() {
     esac
   done
 
-  # 参数校验
-  if [ -z "$username" ]; then
-    err "缺少用户名参数。用法: $0 <username>"
-    exit 1
-  fi
-
-  # Token 检测与降级标记
+  # Token 检测与降级标记（放在用户名校验之前，因为无用户名时可用 Token 自动推断）
   local HAS_TOKEN=true
   if [ -z "${GITHUB_TOKEN:-}" ]; then
-    warn "GITHUB_TOKEN 未设置，将以无认证模式运行（数据覆盖度 ~75%）"
-    warn "  缺失：贡献总数/日历（改为页面抓取估算）、仓库质量快照、PR/Issue 详情"
-    warn "  设置 Token 可获得完整数据: export GITHUB_TOKEN=\"ghp_xxxx\""
     HAS_TOKEN=false
   elif ! [[ "$GITHUB_TOKEN" =~ ^(ghp_|github_pat_|gho_) ]]; then
     warn "GITHUB_TOKEN 格式不常见，将以无认证模式运行"
     HAS_TOKEN=false
+  fi
+
+  # 无用户名时，尝试通过 Token 自动推断
+  if [ -z "$username" ]; then
+    if [ "$HAS_TOKEN" = true ]; then
+      info "未指定用户名，通过 Token 自动检测..."
+      local whoami
+      whoami=$(api_call "GET" "${GITHUB_API_BASE}/user" 2>/dev/null || echo "")
+      username=$(echo "$whoami" | jq -r '.login // ""' 2>/dev/null)
+      if [ -n "$username" ] && [ "$username" != "null" ]; then
+        info "自动检测到 Token 所属用户: $username"
+      else
+        err "无法通过 Token 推断用户名，请手动指定: $0 <username>"
+        exit 1
+      fi
+    else
+      err "缺少用户名参数，且未设置 Token。用法: $0 <username>"
+      err "或设置 Token 后自动检测: export GITHUB_TOKEN=\"ghp_xxxx\" && $0"
+      exit 1
+    fi
+  fi
+
+  # 补全降级提示（放在用户名确定之后）
+  if [ "$HAS_TOKEN" = false ]; then
+    warn "GITHUB_TOKEN 未设置，将以无认证模式运行（数据覆盖度 ~75%）"
+    warn "  缺失：贡献总数/日历（改为页面抓取估算）、仓库质量快照、PR/Issue 详情"
+    warn "  设置 Token 可获得完整数据: export GITHUB_TOKEN=\"ghp_xxxx\""
   fi
 
   # 无 Token 时 api_call 自动跳过认证头（配额 60次/小时）
