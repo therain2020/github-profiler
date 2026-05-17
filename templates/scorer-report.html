@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GitHub Score — @{{USERNAME}}</title>
+<script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
+<style>
+  :root {
+    --bg:#0f0f1a;--card:#1a1a2e;--card2:#16213e;
+    --accent:#6366f1;--cyan:#06b6d4;--gold:#f59e0b;--green:#10b981;--red:#ef4444;
+    --text:#e2e8f0;--muted:#94a3b8;--border:rgba(255,255,255,0.06);--radius:16px;
+    --score-1:#ef4444;--score-2:#f97316;--score-3:#f59e0b;--score-4:#10b981;--score-5:#6366f1;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
+  .hero{text-align:center;padding:60px 24px 48px;background:radial-gradient(ellipse at 50% 0%,rgba(99,102,241,0.15) 0%,transparent 60%)}
+  .hero-avatar{width:80px;height:80px;border-radius:50%;border:3px solid var(--accent);margin-bottom:16px;box-shadow:0 0 30px rgba(99,102,241,0.3)}
+  .hero-username{font-size:36px;font-weight:800;letter-spacing:-1px}
+
+  .big-score-wrap{display:flex;justify-content:center;align-items:center;gap:32px;margin-top:24px}
+  .big-score-num{font-size:72px;font-weight:900;line-height:1;letter-spacing:-3px}
+  .score-label{font-size:14px;color:var(--muted);margin-top:4px}
+  .big-score-grade{font-size:16px;font-weight:700;padding:6px 16px;border-radius:20px}
+
+  .container{max-width:960px;margin:0 auto;padding:0 24px 80px}
+  .section{margin-top:40px}
+  .section-title{font-size:20px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:10px}
+  .section-title::before{content:'';display:inline-block;width:4px;height:22px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--cyan))}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px}
+  .card-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+
+  .chart-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
+  .chart-box h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
+  .chart-inner{width:100%;height:300px}
+
+  .tag{display:inline-block;font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(99,102,241,0.15);color:#a5b4fc;margin:4px;font-weight:500}
+  .summary-box{font-size:15px;line-height:1.8;color:var(--text);padding:20px;background:var(--card2);border-left:3px solid var(--accent);border-radius:0 var(--radius) var(--radius) 0)}
+
+  .dim-bar{margin-bottom:14px}
+  .dim-bar-header{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px}
+  .dim-bar-header .name{color:var(--text);font-weight:500}
+  .dim-bar-header .weight{color:var(--muted)}
+  .dim-bar-bg{height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden}
+  .dim-bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
+  .dim-bar-score{font-weight:700;font-size:15px;text-align:right;margin-top:2px}
+</style>
+</head>
+<body>
+
+<div class="hero">
+  <img class="hero-avatar" src="{{AVATAR_URL}}" alt="{{USERNAME}}" onerror="this.style.display='none'">
+  <div class="hero-username">@{{USERNAME}}</div>
+  <div class="big-score-wrap">
+    <div style="text-align:center">
+      <div class="big-score-num" id="score-num" style="color:{{SCORE_COLOR}}">{{COMPOSITE_SCORE}}</div>
+      <div class="score-label">综合评分 / 5.0</div>
+    </div>
+    <div style="text-align:center">
+      <div class="big-score-grade" style="background:{{SCORE_COLOR}}20;color:{{SCORE_COLOR}}">{{GRADE_LABEL}}</div>
+      <div class="score-label" style="margin-top:8px">{{GRADE_DESC}}</div>
+    </div>
+  </div>
+  <div style="margin-top:16px">
+    {{TAGS}}
+  </div>
+</div>
+
+<div class="container">
+
+  <!-- 四维度 -->
+  <div class="section">
+    <div class="section-title">评分明细</div>
+    <div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+      <div style="grid-column:1/-1">
+        <div class="chart-inner" id="chart-dimensions" style="height:260px"></div>
+      </div>
+      <div class="dim-bar"><div class="dim-bar-header"><span class="name">技术广度与深度</span><span class="weight">权重 30%</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{{TECH_PCT}}%;background:var(--accent)"></div></div><div class="dim-bar-score">{{TECH_SCORE}} / 5.0</div></div>
+      <div class="dim-bar"><div class="dim-bar-header"><span class="name">工程规范</span><span class="weight">权重 25%</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{{ENG_PCT}}%;background:var(--cyan)"></div></div><div class="dim-bar-score">{{ENGINEERING_SCORE}} / 5.0</div></div>
+      <div class="dim-bar"><div class="dim-bar-header"><span class="name">开源协作能力</span><span class="weight">权重 25%</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{{COLLAB_PCT}}%;background:var(--green)"></div></div><div class="dim-bar-score">{{COLLAB_SCORE}} / 5.0</div></div>
+      <div class="dim-bar"><div class="dim-bar-header"><span class="name">社区影响力</span><span class="weight">权重 20%</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{{INFLU_PCT}}%;background:var(--gold)"></div></div><div class="dim-bar-score">{{INFLUENCE_SCORE}} / 5.0</div></div>
+    </div>
+  </div>
+
+  <!-- 图表区 -->
+  <div class="section">
+    <div class="section-title">数据可视化</div>
+    <div class="card-grid">
+      <div class="chart-box"><h3>维度雷达图</h3><div class="chart-inner" id="chart-radar"></div></div>
+      <div class="chart-box"><h3>贡献日历</h3><div class="chart-inner" id="chart-calendar"></div></div>
+      <div class="chart-box"><h3>语言分布</h3><div class="chart-inner" id="chart-languages"></div></div>
+      <div class="chart-box"><h3>仓库质量指标</h3><div class="chart-inner" id="chart-quality"></div></div>
+    </div>
+  </div>
+
+  <!-- 总结 -->
+  <div class="section">
+    <div class="section-title">客观总结</div>
+    <div class="summary-box">{{SUMMARY}}</div>
+  </div>
+
+</div>
+
+<!-- ====== SHARE BAR (same as distill) ====== -->
+<div class="share-bar" id="share-bar">
+  <div class="share-inner">
+    <div class="share-title">分享这份评分报告</div>
+    <div class="share-buttons">
+      <button class="share-btn wechat" onclick="shareCopy('wechat')">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.952-7.062-6.122zm-2.18 2.769c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982z"/></svg>
+        微信
+      </button>
+      <button class="share-btn qq" onclick="shareCopy('qq')">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21.395 15.035a40.548 40.548 0 0 0-.803-2.264l-1.079-2.695c.001-.032.014-.562.014-.836C19.527 4.661 17.262 0 12 0S4.473 4.661 4.473 9.24c0 .274.013.804.014.836L3.408 12.77a39.85 39.85 0 0 0-.803 2.264c-.547 1.613-.468 3.017.607 3.314.406.112.898.007 1.355-.195.138.243.298.473.486.684 1.055 1.186 2.273 1.595 3.145 1.595.261 0 .511-.04.748-.112.268.838.935 1.489 1.76 1.793v.733c0 .426-.115.751-.327.947-.212.195-.523.297-.907.317a.516.516 0 0 0-.484.519c0 .285.232.517.517.517h8.928a.517.517 0 0 0 .517-.517.516.516 0 0 0-.484-.519c-.385-.02-.695-.122-.907-.317-.212-.196-.327-.521-.327-.947v-.733c.825-.304 1.492-.955 1.76-1.793.237.072.487.112.748.112.872 0 2.09-.409 3.145-1.595.188-.211.348-.44.486-.684.457.202.949.307 1.355.195 1.075-.297 1.154-1.701.607-3.314z"/></svg>
+        QQ
+      </button>
+      <button class="share-btn twitter" onclick="shareTwitter()">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
+        X
+      </button>
+      <button class="share-btn copy" onclick="shareCopy('all')">
+        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        复制
+      </button>
+    </div>
+    <div class="share-tip" id="share-tip"></div>
+  </div>
+</div>
+
+<style>
+  .share-bar{background:linear-gradient(135deg,#1a1a2e 0%,#0f0f1a 100%);border-top:1px solid rgba(99,102,241,0.15);padding:40px 24px;text-align:center}
+  .share-inner{max-width:600px;margin:0 auto}
+  .share-title{font-size:16px;font-weight:600;color:var(--muted);margin-bottom:20px}
+  .share-buttons{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
+  .share-btn{display:flex;align-items:center;gap:6px;padding:12px 20px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s}
+  .share-btn:hover{transform:translateY(-2px)}
+  .share-btn.wechat:hover{background:#07c160;border-color:#07c160;color:#fff}
+  .share-btn.qq:hover{background:#12b7f5;border-color:#12b7f5;color:#fff}
+  .share-btn.twitter:hover{background:#1d9bf0;border-color:#1d9bf0;color:#fff}
+  .share-btn.copy:hover{background:var(--accent);border-color:var(--accent);color:#fff}
+  .share-tip{margin-top:14px;font-size:13px;color:var(--cyan);min-height:20px}
+  .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:9999;animation:toastIn 0.3s ease,toastOut 0.3s ease 2s forwards}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+  @keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+  @media(max-width:640px){.card-grid{grid-template-columns:1fr}}
+</style>
+
+<script>
+(function(){
+  var purple='#6366f1',cyan='#06b6d4',gold='#f59e0b',green='#10b981';
+
+  // ── 维度雷达 ──
+  (function(){
+    var c=echarts.init(document.getElementById('chart-radar'));
+    c.setOption({
+      radar:{center:['50%','55%'],radius:'70%',axisName:{color:'#94a3b8',fontSize:11},splitArea:{areaStyle:{color:['rgba(255,255,255,0.02)','rgba(255,255,255,0.04)']}},axisLine:{lineStyle:{color:'rgba(255,255,255,0.1)'}},splitLine:{lineStyle:{color:'rgba(255,255,255,0.08)'}},indicator:[{name:'技术',max:5},{name:'工程',max:5},{name:'协作',max:5},{name:'影响力',max:5}]},
+      series:[{type:'radar',data:[{value:[{{TECH_SCORE}},{{ENGINEERING_SCORE}},{{COLLAB_SCORE}},{{INFLUENCE_SCORE}}],name:'@{{USERNAME}}',areaStyle:{color:'rgba(99,102,241,0.2)'},lineStyle:{color:purple,width:2},itemStyle:{color:purple}}]}]
+    });
+  })();
+
+  // ── 贡献日历 ──
+  (function(){
+    var c=echarts.init(document.getElementById('chart-calendar'));
+    var data={{CALENDAR_DATA}};
+    if(data.length>0){c.setOption({tooltip:{formatter:function(p){return p.data[0]+': '+p.data[1]+' contributions'},backgroundColor:'#1a1a2e',borderColor:'#333',textStyle:{color:'#e2e8f0'}},visualMap:{min:0,max:{{CALENDAR_MAX}},orient:'horizontal',left:'center',bottom:0,inRange:{color:['#1a1a2e','#1e3a5f','#216e39','#30a14e','#40c463','#9be9a8']},textStyle:{color:'#94a3b8'}},calendar:{range:'{{CALENDAR_RANGE}}',cellSize:['auto',14],splitLine:{lineStyle:{color:'rgba(255,255,255,0.04)'}},itemStyle:{borderColor:'rgba(255,255,255,0.06)',borderWidth:2,borderRadius:2},dayLabel:{color:'#94a3b8'},monthLabel:{color:'#94a3b8'},yearLabel:{show:false}},series:[{type:'heatmap',coordinateSystem:'calendar',data:data}]});}else{c.setOption({title:{text:'无每日贡献数据',left:'center',top:'center',textStyle:{color:'#94a3b8',fontSize:14}}})}
+  })();
+
+  // ── 语言分布 ──
+  (function(){var c=echarts.init(document.getElementById('chart-languages'));var d={{LANGUAGE_DATA}};if(d.length>0){c.setOption({series:[{type:'treemap',data:d,roam:false,label:{show:true,formatter:function(p){return p.name+'\n'+p.value+' repos'},color:'#e2e8f0',fontSize:12},levels:[{itemStyle:{borderColor:'#0f0f1a',borderWidth:3,gapWidth:2}}],color:[purple,cyan,gold,green,'#ec4899','#8b5cf6']}]});}else{c.setOption({title:{text:'暂无语言数据',left:'center',top:'center',textStyle:{color:'#94a3b8',fontSize:14}}})}
+  })();
+
+  // ── 仓库质量 ──
+  (function(){var c=echarts.init(document.getElementById('chart-quality'));var d={{QUALITY_DATA}};if(d.length>0){c.setOption({radar:{center:['50%','55%'],radius:'65%',axisName:{color:'#94a3b8',fontSize:10},splitArea:{areaStyle:{color:['rgba(255,255,255,0.02)','rgba(255,255,255,0.04)']}},axisLine:{lineStyle:{color:'rgba(255,255,255,0.1)'}},splitLine:{lineStyle:{color:'rgba(255,255,255,0.08)'}},indicator:[{name:'README',max:100},{name:'License',max:100},{name:'CI/CD',max:100},{name:'Workflows',max:100},{name:'Deploy',max:100}]},series:[{type:'radar',data:d,areaStyle:{color:'rgba(6,182,212,0.15)'},lineStyle:{color:cyan,width:2},itemStyle:{color:cyan}}]});}else{c.setOption({title:{text:'需 Token 获取质量数据',left:'center',top:'center',textStyle:{color:'#94a3b8',fontSize:14}}})}
+  })();
+
+  window.addEventListener('resize',function(){['chart-radar','chart-calendar','chart-languages','chart-quality'].forEach(function(id){var d=document.getElementById(id);if(d){var i=echarts.getInstanceByDom(d);if(i)i.resize()}})});
+})();
+
+function showToast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},2500)}
+var SHARE_TEXT='📊 @{{USERNAME}} GitHub评分\n\n综合 {{COMPOSITE_SCORE}}/5.0 {{GRADE_LABEL}}\n🔧技术 {{TECH_SCORE}} 📐工程 {{ENGINEERING_SCORE}}\n🤝协作 {{COLLAB_SCORE}} 🌟影响力 {{INFLUENCE_SCORE}}\n\n📝 {{SUMMARY}}\n\n评分工具: github-profiler\nhttps://github.com/therain2020/github-profiler';
+function shareCopy(p){
+  var t=SHARE_TEXT;
+  if(p==='wechat')t='【GitHub评分】@{{USERNAME}} 综合 {{COMPOSITE_SCORE}}/5.0\n\n🔧技术{{TECH_SCORE}} | 📐工程{{ENGINEERING_SCORE}} | 🤝协作{{COLLAB_SCORE}} | 🌟影响力{{INFLUENCE_SCORE}}\n\n📝 {{SUMMARY}}\n\n— github-profiler';
+  if(p==='qq')t='📊 @{{USERNAME}}: {{COMPOSITE_SCORE}}/5.0 ({{GRADE_LABEL}})\n技术{{TECH_SCORE}} 工程{{ENGINEERING_SCORE}} 协作{{COLLAB_SCORE}} 影响力{{INFLUENCE_SCORE}}\n\n{{SUMMARY}}\n\ngithub-profiler';
+  if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){showToast('已复制！')})}else{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('已复制！')}
+}
+function shareTwitter(){window.open('https://x.com/intent/tweet?text='+encodeURIComponent('📊 @{{USERNAME}} GitHub评分 {{COMPOSITE_SCORE}}/5.0 — {{SUMMARY}}')+'&url='+encodeURIComponent('https://github.com/therain2020/github-profiler'),'_blank')}
+</script>
+
+</body>
+</html>

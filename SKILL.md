@@ -169,12 +169,22 @@ scripts/    — 数据获取和上传脚本
 templates/  — 提示词和卡片模板
 ```
 
+## 报告生成
+
+评分完成后，调用 `/github-report` 生成可视化 HTML 报告（含 ECharts 图表 + 微信/QQ/X 分享按钮）。
+
 ## 示例
 
 ```
 用户: /github-scorer torvalds
 → 获取 Linus Torvalds 的 GitHub 数据
 → 分析生成四维度评分报告
+→ 调用 /github-report 生成可视化 HTML
 → 询问是否上传排行榜
 → 生成分享卡片
 ```
+
+## 相关 Skill
+
+- `/github-distill` — 蒸馏 GitHub 用户（提取"另一个我"）
+- `/github-report` — 可视化 HTML 报告生成（评分/蒸馏共享）
