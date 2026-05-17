@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(Get-ChildItem *)",
+      "Skill(skill-creator)",
+      "Bash(mv .claude/skills/github-scorer.md .claude/skills/github-scorer/SKILL.md)",
+      "Bash(mv .claude/skills/github-distill.md .claude/skills/github-distill/SKILL.md)",
+      "Bash(mv .claude/skills/github-report.md .claude/skills/github-report/SKILL.md)",
+      "Bash(mv .claude/skills/github-optimize.md .claude/skills/github-optimize/SKILL.md)",
+      "PowerShell(if \\($env:CAICAI_KEY\\) { \"CAICAI_KEY is set, length: $\\($env:CAICAI_KEY.Length\\)\" } else { \"CAICAI_KEY is NOT set\" })",
+      "Bash(cp .claude/skills/github-scorer/SKILL.md SKILL.md)",
+      "Bash(cp .claude/skills/github-distill/SKILL.md SKILL-distill.md)",
+      "Bash(cp .claude/skills/github-optimize/SKILL.md SKILL-optimize.md)",
+      "Bash(cp .claude/skills/github-report/SKILL.md SKILL-report.md)",
+      "Bash(bash *)"
+    ]
+  }
+}

@@ -1,30 +1,24 @@
 #!/usr/bin/env python3
-"""render-report.py — Fill HTML template with JSON data, robust against special chars."""
+"""render-report.py v3 — Fill HTML templates with prompt v3 JSON output."""
 import json, sys, os
 from pathlib import Path
 from datetime import datetime
 
 data_file = sys.argv[1]
-mode = sys.argv[2]  # scorer | distill
+mode = sys.argv[2]  # scorer | distill | optimize
 output = sys.argv[3] if len(sys.argv) > 3 else None
 
 data = json.load(open(data_file, encoding='utf-8'))
 project = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 template = (project / 'templates' / f'{mode}-report.html').read_text(encoding='utf-8')
 
-profile = data.get('profile', {})
-username = data.get('meta', {}).get('username') or profile.get('login', 'unknown')
-avatar = profile.get('avatar_url', '')
+# ── Shared data ──
+username = data.get('username') or data.get('meta', {}).get('username', 'unknown')
 ts = datetime.now().strftime('%Y%m%d-%H%M%S')
 if not output:
     output = str(project / 'reports' / f'{username}-{mode}-{ts}.html')
 
-cal = data.get('contributions', {}).get('calendar', {})
-cal_data = []
-for w in cal.get('weeks', []):
-    for d in w.get('days', []):
-        if d.get('count', 0) > 0:
-            cal_data.append([d['date'], d['count']])
+cal_data = data.get('contributions', {}).get('calendar', {}).get('active_days', [])
 cal_max = max((c for _, c in cal_data), default=1)
 
 lang_counts = {}
@@ -34,7 +28,6 @@ for r in data.get('repositories', []):
 lang_data = [{'name': k, 'value': v} for k, v in sorted(lang_counts.items(), key=lambda x: -x[1])]
 
 repl = {
-    '{{AVATAR_URL}}': avatar,
     '{{USERNAME}}': username,
     '{{CALENDAR_DATA}}': json.dumps(cal_data),
     '{{CALENDAR_MAX}}': str(cal_max),
@@ -42,96 +35,231 @@ repl = {
     '{{LANGUAGE_DATA}}': json.dumps(lang_data),
 }
 
+# ── Quality radar (from deep_dive) ──
+quality_data = []
+for q in data.get('deep_dive', []):
+    qm = q.get('quality', {})
+    readme_bytes = qm.get('readme_bytes', 0)
+    quality_data.append({
+        'name': q['repo'].split('/')[-1],
+        'value': [
+            qm.get('has_readme', 0),
+            min(qm.get('commit_count', 0) * 100 // 30, 100),
+            min(qm.get('avg_commit_msg_len', 0) * 100 // 60, 100),
+            min(qm.get('issue_count', 0) * 100 // 10, 100),
+            min(readme_bytes * 100 // 5000, 100),
+        ]
+    })
+repl['{{QUALITY_DATA}}'] = json.dumps(quality_data)
+
+# ════════════════════════════════════════════════════════════════════
+# SCORER mode
+# ════════════════════════════════════════════════════════════════════
 if mode == 'scorer':
-    tech = data.get('tech_score', 0)
-    eng = data.get('engineering_score', 0)
-    collab = data.get('collab_score', 0)
-    influ = data.get('influence_score', 0)
-    comp = data.get('composite_score', 0)
-    tags_html = ' '.join(f'<span class="tag">{t}</span>' for t in data.get('profile_tags', []))
-    summary = data.get('summary', '').replace('"', '\\"')
+    dims = data.get('dimension_scores', {})
+    overall = data.get('overall_score', 0) or round(data.get('composite_score', 0) * 20)  # legacy 1-5→0-100
+    summary = data.get('summary', {})
+    viz = data.get('visualization_data', {})
+    # legacy fallback: construct dims from old individual scores
+    if not dims:
+        legacy = {k: round(data.get(f'{k}_score', 0) * 20) for k in ['tech','engineering','collab','influence']}
+        if legacy['tech']: dims = legacy
 
-    if comp >= 4.5: grade, color, desc = '大师级', '#6366f1', '社区领袖级别'
-    elif comp >= 4.0: grade, color, desc = '优秀', '#10b981', '深度参与开源，项目质量高'
-    elif comp >= 3.0: grade, color, desc = '合格', '#f59e0b', '常规使用，有项目维护经验'
-    elif comp >= 2.0: grade, color, desc = '初级', '#f97316', '偶尔提交，个人小项目为主'
-    else: grade, color, desc = '入门', '#ef4444', '极少公开活动'
+    # Score ring offset (circumference 515)
+    ring_off = round(515 * (1 - overall / 100), 1)
 
-    quality_data = []
-    for q in data.get('quality', []):
-        quality_data.append({
-            'name': q['repo'].split('/')[-1],
-            'value': [
-                q.get('community', {}).get('health_percentage', 0),
-                100 if q.get('community', {}).get('has_readme') else 0,
-                100 if q.get('ci', {}).get('has_status_checks') else 0,
-                100 if q.get('workflows', {}).get('count', 0) > 0 else 0,
-                100 if q.get('deployments', {}).get('count', 0) > 0 else 0,
-            ]
-        })
+    # Grade
+    if overall >= 90: grade, color, desc = 'S+', '#6366f1', '世界级'
+    elif overall >= 75: grade, color, desc = 'A', '#10b981', '优秀'
+    elif overall >= 60: grade, color, desc = 'B', '#f59e0b', '良好'
+    elif overall >= 40: grade, color, desc = 'C', '#f97316', '中等'
+    else: grade, color, desc = 'D', '#ef4444', '需要努力'
+
+    # 6 dimension bars
+    dim_labels = {
+        'productivity': '代码生产力', 'influence': '社区影响力',
+        'quality': '工程质量', 'collaboration': '协作贡献',
+        'knowledge_sharing': '知识分享', 'growth_potential': '成长潜力'
+    }
+    dim_colors = ['#d4451a','#c27803','#2a7d4f','#2563eb','#8b5cf6','#ec4899']
+    dim_bars = ''
+    for i, (key, label) in enumerate(dim_labels.items()):
+        v = dims.get(key, 0)
+        dim_bars += f'<div class="dim-row"><span class="dim-name">{label}</span><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{v}%;background:{dim_colors[i]}"></div></div><span class="dim-val">{v}</span></div>'
+
+    # Strengths / weaknesses (v3 dict or legacy string)
+    if isinstance(summary, str):
+        strengths_html = weaknesses_html = ''
+        tagline = summary
+    else:
+        strengths_html = ''.join(f'<li>{s}</li>' for s in summary.get('strengths', []))
+        weaknesses_html = ''.join(f'<li>{w}</li>' for w in summary.get('weaknesses', []))
+        tagline = summary.get('tagline', '')
+
+    # Activity breakdown chart data
+    ab = viz.get('activity_breakdown', {})
+    ab_keys = ['commits','pull_requests','issues','reviews','gists']
+    ab_names = ['Commits','PRs','Issues','Reviews','Gists']
+    activity_breakdown_data = json.dumps([
+        {'name': n, 'value': ab.get(k, 0)} for k, n in zip(ab_keys, ab_names)
+    ])
+
+    # Top repos
+    top_repos = viz.get('top_repos', [])
+    top_repos_html = ''
+    for r in top_repos[:5]:
+        lang = r.get('language') or '—'
+        top_repos_html += f'<div class="repo-card"><div class="repo-name">{r["name"]}</div><div class="repo-meta">{lang} &middot; {r["stars"]} stars &middot; {r["forks"]} forks</div></div>'
+
+    # Commit frequency (monthly)
+    cf = viz.get('commit_frequency_last_year', [])
+    commit_freq_data = json.dumps([[item['month'], item['count']] for item in cf])
 
     repl.update({
-        '{{COMPOSITE_SCORE}}': str(comp),
-        '{{SCORE_COLOR}}': color,
-        '{{GRADE_LABEL}}': grade,
+        '{{DIM_BARS}}': dim_bars,
+        '{{OVERALL_SCORE}}': str(overall),
+        '{{SCORE_RING_OFFSET}}': str(ring_off),
+        '{{GRADE}}': grade,
+        '{{GRADE_COLOR}}': color,
         '{{GRADE_DESC}}': desc,
-        '{{TAGS}}': tags_html,
-        '{{TECH_SCORE}}': str(tech),
-        '{{ENGINEERING_SCORE}}': str(eng),
-        '{{COLLAB_SCORE}}': str(collab),
-        '{{INFLUENCE_SCORE}}': str(influ),
-        '{{TECH_PCT}}': str(int(tech * 20)),
-        '{{ENG_PCT}}': str(int(eng * 20)),
-        '{{COLLAB_PCT}}': str(int(collab * 20)),
-        '{{INFLU_PCT}}': str(int(influ * 20)),
-        '{{SUMMARY}}': summary,
-        '{{QUALITY_DATA}}': json.dumps(quality_data),
+        '{{STRENGTHS}}': strengths_html,
+        '{{WEAKNESSES}}': weaknesses_html,
+        '{{TAGLINE}}': tagline,
+        '{{ACTIVITY_BREAKDOWN_DATA}}': activity_breakdown_data,
+        '{{TOP_REPOS}}': top_repos_html,
+        '{{COMMIT_FREQ_DATA}}': commit_freq_data,
+        '{{RADAR_LABELS}}': json.dumps(viz.get('radar', {}).get('labels', [])),
+        '{{RADAR_VALUES}}': json.dumps(viz.get('radar', {}).get('values', [])),
     })
 
+# ════════════════════════════════════════════════════════════════════
+# DISTILL mode
+# ════════════════════════════════════════════════════════════════════
 elif mode == 'distill':
-    paradigm = data.get('dna', {}).get('paradigm', {})
-    paradigm_vals = [paradigm.get(k, 0) for k in ['Builder', 'Learner', 'Collector', 'Hacker', 'Explainer']]
-    dom = max(paradigm.items(), key=lambda x: x[1])[0] if paradigm else 'Builder'
+    ds = data.get('distilled_self', {})
+    am = data.get('another_me', {})
+    viz = data.get('visualization_data', {})
 
-    followers = profile.get('followers', 0)
-    if followers > 200: soc_score, soc_label = 80, '温带·有来有往'
-    elif followers > 50: soc_score, soc_label = 50, '微暖·开始连接'
-    elif followers > 10: soc_score, soc_label = 25, '微温·偶有涟漪'
-    else: soc_score, soc_label = 5, '冰点·尚未插上温度计'
+    # Radar
+    radar = viz.get('radar', {})
+    radar_dims = json.dumps(radar.get('dimensions', []))
+    radar_self = json.dumps(radar.get('values', []))
+    radar_other = json.dumps(radar.get('another_me_values', []))
 
-    hidden_html = ''
-    for item in data.get('hidden_self', []):
-        parts = item.split('—', 1) if '—' in item else item.split('→', 1)
-        signal = parts[0].strip() if len(parts) > 0 else item
-        insight = parts[1].strip() if len(parts) > 1 else ''
-        hidden_html += f'<div class="hidden-card"><div class="signal">{signal}</div><div class="insight">{insight}</div></div>'
+    # Heatmap
+    heatmap = viz.get('commit_heatmap', {})
+    hourly = json.dumps(heatmap.get('hourly_distribution', [0]*24))
+    weekday = json.dumps(heatmap.get('weekday_distribution', [0]*7))
 
-    rpg = data.get('rpg', {})
-    rpg_icons = {'机械师': '🔧', '枪匠': '🔧', '炼金术士': '⚗️', '游侠': '🏹', '法师': '🔮', '骑士': '⚔️'}
-    rpg_icon = next((v for k, v in rpg_icons.items() if k in rpg.get('class', '')), '🛠️')
+    # Language cloud
+    lang_cloud = viz.get('language_cloud', [])
+    lang_cloud_data = json.dumps(lang_cloud)
+
+    # Behavior summary
+    bs = viz.get('behavior_summary', {})
+
+    # Personality tags
+    tags_html = ''.join(f'<span class="persona-tag">{t}</span>' for t in am.get('personality_tags', []))
 
     repl.update({
-        '{{DISTILLATE}}': data.get('distillate', ''),
-        '{{NATIVE_LANGUAGE}}': data.get('dna', {}).get('native_language', ''),
-        '{{DOMINANT_PARADIGM}}': dom,
-        '{{SOCIAL_TEMPERATURE}}': data.get('dna', {}).get('social_temperature', ''),
-        '{{PERSONA}}': data.get('persona', ''),
-        '{{PARADIGM_VALUES}}': ','.join(str(v) for v in paradigm_vals),
-        '{{SOCIAL_SCORE}}': str(soc_score),
-        '{{SOCIAL_LABEL}}': soc_label,
-        '{{HIDDEN_SELF_CARDS}}': hidden_html,
-        '{{RPG_ICON}}': rpg_icon,
-        '{{RPG_CLASS}}': rpg.get('class', ''),
-        '{{RPG_LEVEL}}': rpg.get('level', ''),
-        '{{SKILL_MAJOR}}': rpg.get('skill_tree', {}).get('major', ''),
-        '{{SKILL_MINOR}}': rpg.get('skill_tree', {}).get('minor', ''),
-        '{{SKILL_HIDDEN}}': rpg.get('skill_tree', {}).get('hidden', ''),
-        '{{TREASURE}}': rpg.get('inventory', {}).get('treasure', ''),
-        '{{HIDDEN_GEM}}': rpg.get('inventory', {}).get('hidden_gem', ''),
-        '{{PARTY_STATUS}}': rpg.get('party_status', ''),
-        '{{MAIN_QUEST}}': rpg.get('main_quest', ''),
+        '{{PRIMARY_LANGUAGE}}': ds.get('primary_language', ''),
+        '{{TECH_ROLE}}': ds.get('tech_role', ''),
+        '{{ACTIVITY_CRON}}': ds.get('activity_cron', ''),
+        '{{COLLAB_STYLE}}': ds.get('collaboration_style', ''),
+        '{{DOC_STYLE}}': ds.get('doc_style', ''),
+        '{{EXPLORATION_SCORE}}': str(ds.get('exploration_score', 0)),
+        '{{ALIAS}}': am.get('alias', ''),
+        '{{REALM}}': am.get('realm', ''),
+        '{{PERSONALITY_TAGS}}': tags_html,
+        '{{QUOTE}}': am.get('quote', ''),
+        '{{SIMILARITY}}': str(am.get('similarity', 0)),
+        '{{RADAR_DIMENSIONS}}': radar_dims,
+        '{{RADAR_SELF}}': radar_self,
+        '{{RADAR_OTHER}}': radar_other,
+        '{{HOURLY_DATA}}': hourly,
+        '{{WEEKDAY_DATA}}': weekday,
+        '{{LANG_CLOUD_DATA}}': lang_cloud_data,
+        '{{TOTAL_COMMITS}}': str(bs.get('total_commits', 0)),
+        '{{TOTAL_PRS}}': str(bs.get('total_prs', 0)),
+        '{{MERGE_RATE}}': str(bs.get('merge_rate', 0)),
+        '{{AVG_MSG_LEN}}': str(bs.get('avg_commit_msg_len', 0)),
+        '{{REPO_COUNT}}': str(bs.get('repo_count_original', 0)),
     })
 
+# ════════════════════════════════════════════════════════════════════
+# OPTIMIZE mode
+# ════════════════════════════════════════════════════════════════════
+elif mode == 'optimize':
+    health = data.get('overall_health_score', 0)
+    viz = data.get('visualization_data', {})
+
+    # Health ring
+    ring_off = round(515 * (1 - health / 100), 1)
+
+    # Top 3 suggestions
+    top3 = data.get('top_3_priority_suggestions', [])
+    difficulty_icons = {'低': '🟢', '中等': '🟡', '高': '🔴'}
+    top3_html = ''
+    for s in top3:
+        steps = ''.join(f'<li>{step}</li>' for step in s.get('actionable_steps', []))
+        diff = s.get('difficulty', '中等')
+        top3_html += f'''
+        <div class="suggestion-card">
+          <div class="sug-header">
+            <span class="sug-id">{s["id"]}</span>
+            <span class="sug-category">{s["category"]}</span>
+            <span class="sug-difficulty">{difficulty_icons.get(diff, '')} {diff}</span>
+          </div>
+          <div class="sug-title">{s["title"]}</div>
+          <div class="sug-state"><strong>当前：</strong>{s["current_state"]}</div>
+          <div class="sug-target"><strong>目标：</strong>{s["target_state"]}</div>
+          <ol class="sug-steps">{steps}</ol>
+          <div class="sug-impact">预期效果：{s["expected_impact"]}</div>
+        </div>'''
+
+    # Priority matrix
+    pm = viz.get('priority_matrix', {})
+    pm_data = json.dumps({
+        'quick_wins': [{'name': i, 'value': [80, 20]} for i in pm.get('quick_wins', [])],
+        'major_projects': [{'name': i, 'value': [80, 80]} for i in pm.get('major_projects', [])],
+        'fill_ins': [{'name': i, 'value': [20, 20]} for i in pm.get('fill_ins', [])],
+        'thankless_tasks': [{'name': i, 'value': [20, 80]} for i in pm.get('thankless_tasks', [])],
+    })
+
+    # Roadmap
+    roadmap = viz.get('improvement_roadmap', [])
+    roadmap_html = ''
+    for i, phase in enumerate(roadmap):
+        tasks = ''.join(f'<li>{t}</li>' for t in phase.get('tasks', []))
+        roadmap_html += f'''
+        <div class="roadmap-phase">
+          <div class="phase-marker">{i+1}</div>
+          <div class="phase-content">
+            <div class="phase-title">{phase["phase"]}: {phase["focus"]}</div>
+            <ul class="phase-tasks">{tasks}</ul>
+          </div>
+        </div>'''
+
+    # Growth curve
+    gc = viz.get('projected_growth_curve', [])
+    growth_data = json.dumps([[item['month'], item['score']] for item in gc])
+
+    # Current vs target scores
+    curr_scores = viz.get('current_dimension_scores', {})
+    tgt_scores = viz.get('target_dimension_scores', {})
+
+    repl.update({
+        '{{HEALTH_SCORE}}': str(health),
+        '{{HEALTH_RING_OFFSET}}': str(ring_off),
+        '{{TOP3_SUGGESTIONS}}': top3_html,
+        '{{PRIORITY_MATRIX_DATA}}': pm_data,
+        '{{ROADMAP}}': roadmap_html,
+        '{{GROWTH_DATA}}': growth_data,
+        '{{CURRENT_SCORES}}': json.dumps(list(curr_scores.values())),
+        '{{TARGET_SCORES}}': json.dumps(list(tgt_scores.values())),
+    })
+
+# ── Fill template ──
 html = template
 for k, v in repl.items():
     html = html.replace(k, v)

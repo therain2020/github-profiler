@@ -3,190 +3,183 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>GitHub Score — @{{USERNAME}}</title>
+<title>GitHub Profiler — @{{USERNAME}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <style>
   :root {
-    --bg:#0f0f1a;--card:#1a1a2e;--card2:#16213e;
-    --accent:#6366f1;--cyan:#06b6d4;--gold:#f59e0b;--green:#10b981;--red:#ef4444;
-    --text:#e2e8f0;--muted:#94a3b8;--border:rgba(255,255,255,0.06);--radius:16px;
-    --score-1:#ef4444;--score-2:#f97316;--score-3:#f59e0b;--score-4:#10b981;--score-5:#6366f1;
+    --paper: #faf8f5; --ink: #1a1a1a; --ink-muted: #6b6b6b; --ink-faint: #bababa;
+    --rule: #e5e0d8; --rule-light: #f0ede6;
+    --accent: #d4451a; --accent2: #c27803; --accent3: #2a7d4f;
+    --card-bg: #ffffff; --card-shadow: 0 1px 0 var(--rule), 1px 0 0 var(--rule);
+    --font-display: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-body: 'Noto Sans SC', -apple-system, sans-serif;
   }
-  *{margin:0;padding:0;box-sizing:border-box}
-  body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',system-ui,sans-serif;background:var(--bg);color:var(--text);line-height:1.6}
-  .hero{text-align:center;padding:60px 24px 48px;background:radial-gradient(ellipse at 50% 0%,rgba(99,102,241,0.15) 0%,transparent 60%)}
-  .hero-avatar{width:80px;height:80px;border-radius:50%;border:3px solid var(--accent);margin-bottom:16px;box-shadow:0 0 30px rgba(99,102,241,0.3)}
-  .hero-username{font-size:36px;font-weight:800;letter-spacing:-1px}
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--font-body);background:var(--paper);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased}
 
-  .big-score-wrap{display:flex;justify-content:center;align-items:center;gap:32px;margin-top:24px}
-  .big-score-num{font-size:72px;font-weight:900;line-height:1;letter-spacing:-3px}
-  .score-label{font-size:14px;color:var(--muted);margin-top:4px}
-  .big-score-grade{font-size:16px;font-weight:700;padding:6px 16px;border-radius:20px}
+  .masthead{border-bottom:1px solid var(--ink);padding:28px 40px;display:flex;justify-content:space-between;align-items:baseline;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--ink-muted)}
+  .masthead span:last-child{color:var(--ink-faint)}
 
-  .container{max-width:960px;margin:0 auto;padding:0 24px 80px}
-  .section{margin-top:40px}
-  .section-title{font-size:20px;font-weight:700;margin-bottom:20px;display:flex;align-items:center;gap:10px}
-  .section-title::before{content:'';display:inline-block;width:4px;height:22px;border-radius:2px;background:linear-gradient(180deg,var(--accent),var(--cyan))}
+  .hero{padding:80px 40px 48px;display:grid;grid-template-columns:1fr 1fr;gap:60px;max-width:1100px;margin:0 auto}
+  .hero-left{display:flex;flex-direction:column;justify-content:center}
+  .hero-kicker{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:12px}
+  .hero-name{font-family:var(--font-display);font-size:56px;font-weight:900;line-height:1.05;letter-spacing:-1px}
+  .hero-bio{font-size:15px;color:var(--ink-muted);margin-top:8px}
+  .hero-right{display:flex;flex-direction:column;align-items:flex-end;justify-content:center}
+  .score-ring{position:relative;width:180px;height:180px}
+  .score-ring svg{transform:rotate(-90deg)}
+  .score-ring .bg-circle{fill:none;stroke:var(--rule);stroke-width:6}
+  .score-ring .fill-circle{fill:none;stroke:var(--accent);stroke-width:6;stroke-linecap:round;transition:stroke-dashoffset 1.2s cubic-bezier(0.25,0.1,0.25,1)}
+  .score-ring .score-text{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center}
+  .score-ring .score-num{font-family:var(--font-display);font-size:48px;font-weight:900;line-height:1;color:var(--accent)}
+  .score-ring .score-outof{font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);letter-spacing:1px}
 
-  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:24px;margin-bottom:16px}
-  .card-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .tagline-row{max-width:1100px;margin:0 auto;padding:0 40px 60px;font-family:var(--font-display);font-size:22px;font-style:italic;color:var(--ink);text-align:center}
 
-  .chart-box{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:20px}
-  .chart-box h3{font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:12px}
-  .chart-inner{width:100%;height:300px}
+  .content{max-width:1100px;margin:0 auto;padding:0 40px 80px;display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--ink)}
+  .section-label{grid-column:1/-1;font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--ink-faint);padding:40px 0 20px;border-bottom:1px solid var(--rule);margin-bottom:24px}
 
-  .tag{display:inline-block;font-size:12px;padding:5px 12px;border-radius:20px;background:rgba(99,102,241,0.15);color:#a5b4fc;margin:4px;font-weight:500}
-  .summary-box{font-size:15px;line-height:1.8;color:var(--text);padding:20px;background:var(--card2);border-left:3px solid var(--accent);border-radius:0 var(--radius) var(--radius) 0)}
+  .score-detail{grid-column:1/-1;padding:24px 0;border-bottom:1px solid var(--rule)}
+  .dim-row{display:grid;grid-template-columns:140px 1fr 50px;align-items:center;gap:16px;margin-bottom:10px}
+  .dim-name{font-size:14px;font-weight:500;white-space:nowrap}
+  .dim-bar-bg{height:4px;background:var(--rule)}
+  .dim-bar-fill{height:100%;transition:width 1s cubic-bezier(0.25,0.1,0.25,1)}
+  .dim-val{font-family:var(--font-mono);font-size:14px;text-align:right;font-weight:700}
 
-  .dim-bar{margin-bottom:14px}
-  .dim-bar-header{display:flex;justify-content:space-between;margin-bottom:6px;font-size:13px}
-  .dim-bar-header .name{color:var(--text);font-weight:500}
-  .dim-bar-header .weight{color:var(--muted)}
-  .dim-bar-bg{height:8px;background:rgba(255,255,255,0.06);border-radius:4px;overflow:hidden}
-  .dim-bar-fill{height:100%;border-radius:4px;transition:width 0.6s ease}
-  .dim-bar-score{font-weight:700;font-size:15px;text-align:right;margin-top:2px}
+  .chart-box{padding:24px 0;border-bottom:1px solid var(--rule-light)}
+  .chart-box.full{grid-column:1/-1}
+  .chart-box:nth-child(odd){padding-right:24px;border-right:1px solid var(--rule-light)}
+  .chart-box:nth-child(even){padding-left:24px}
+  .chart-box h3{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-muted);margin-bottom:16px}
+  .chart-inner{width:100%;height:320px}
+
+  .strengths-weaknesses{grid-column:1/-1;display:grid;grid-template-columns:1fr 1fr;gap:0;border-bottom:1px solid var(--rule)}
+  .sw-col{padding:24px 32px 24px 0}
+  .sw-col+.sw-col{padding:24px 0 24px 32px;border-left:1px solid var(--rule-light)}
+  .sw-col h3{font-family:var(--font-display);font-size:18px;font-weight:700;margin-bottom:12px}
+  .sw-col ul{list-style:none}
+  .sw-col li{font-size:14px;padding:4px 0;line-height:1.6}
+  .sw-col li::before{content:'+ ';color:var(--accent3);font-weight:700}
+  .sw-col+.sw-col li::before{content:'– ';color:var(--accent);font-weight:700}
+
+  .top-repos{grid-column:1/-1;padding:24px 0;border-bottom:1px solid var(--rule);display:flex;gap:12px;flex-wrap:wrap}
+  .repo-card{flex:1;min-width:180px;background:var(--card-bg);border:1px solid var(--rule);padding:16px}
+  .repo-card .repo-name{font-family:var(--font-mono);font-size:12px;font-weight:700;margin-bottom:4px}
+  .repo-card .repo-meta{font-size:12px;color:var(--ink-muted)}
+
+  /* Share & footer */
+  .share-section{max-width:1100px;margin:0 auto;padding:32px 40px;border-top:1px solid var(--ink);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .share-label{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-muted)}
+  .share-buttons{display:flex;gap:6px}
+  .share-btn{font-family:var(--font-mono);font-size:11px;padding:6px 14px;border:1px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer;transition:all 0.15s;letter-spacing:0.5px;display:flex;align-items:center;gap:5px}
+  .share-btn:hover{background:var(--ink);color:var(--paper)}
+  .share-btn.wechat:hover{background:#07c160;border-color:#07c160;color:#fff}
+  .share-btn.qq:hover{background:#12b7f5;border-color:#12b7f5;color:#fff}
+  .share-btn.x:hover{background:#1d9bf0;border-color:#1d9bf0;color:#fff}
+  .star-footer{max-width:1100px;margin:0 auto;padding:20px 40px 60px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--rule)}
+  .star-footer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--rule)}
+  .star-footer a:hover{border-color:var(--ink)}
+  .toast{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 28px;font-family:var(--font-mono);font-size:12px;z-index:9999;animation:toastIn .3s ease,toastOut .3s ease 2s forwards}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}}
+  @keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+  @media(max-width:720px){.hero{grid-template-columns:1fr;gap:32px}.hero-right{align-items:flex-start}.content{grid-template-columns:1fr}.chart-box:nth-child(odd){padding-right:0;border-right:none}.chart-box:nth-child(even){padding-left:0}.strengths-weaknesses{grid-template-columns:1fr}.sw-col+.sw-col{border-left:none;border-top:1px solid var(--rule-light);padding:24px 0}.masthead,.hero,.content,.share-section,.star-footer{padding-left:24px;padding-right:24px}}
 </style>
 </head>
 <body>
+<div class="masthead"><span>GitHub Profiler</span><span>Research Dossier {{OVERALL_SCORE}}/100</span></div>
 
 <div class="hero">
-  <img class="hero-avatar" src="{{AVATAR_URL}}" alt="{{USERNAME}}" onerror="this.style.display='none'">
-  <div class="hero-username">@{{USERNAME}}</div>
-  <div class="big-score-wrap">
-    <div style="text-align:center">
-      <div class="big-score-num" id="score-num" style="color:{{SCORE_COLOR}}">{{COMPOSITE_SCORE}}</div>
-      <div class="score-label">综合评分 / 5.0</div>
-    </div>
-    <div style="text-align:center">
-      <div class="big-score-grade" style="background:{{SCORE_COLOR}}20;color:{{SCORE_COLOR}}">{{GRADE_LABEL}}</div>
-      <div class="score-label" style="margin-top:8px">{{GRADE_DESC}}</div>
-    </div>
+  <div class="hero-left">
+    <div class="hero-kicker">Analysis Subject</div>
+    <div class="hero-name">@{{USERNAME}}</div>
+    <div class="hero-bio">GitHub 公开活动量化评估 &middot; {{GRADE}} 级 &middot; {{GRADE_DESC}}</div>
   </div>
-  <div style="margin-top:16px">
-    {{TAGS}}
+  <div class="hero-right">
+    <div class="score-ring">
+      <svg width="180" height="180" viewBox="0 0 180 180">
+        <circle class="bg-circle" cx="90" cy="90" r="82"/>
+        <circle class="fill-circle" cx="90" cy="90" r="82" stroke-dasharray="515" stroke-dashoffset="515" id="score-ring-fill" style="stroke-dashoffset:{{SCORE_RING_OFFSET}}"/>
+      </svg>
+      <div class="score-text"><div class="score-num">{{OVERALL_SCORE}}</div><div class="score-outof">/ 100 &middot; {{GRADE}}</div></div>
+    </div>
   </div>
 </div>
 
-<div class="container">
+<div class="tagline-row">&ldquo;{{TAGLINE}}&rdquo;</div>
 
-  <!-- 四维度 -->
-  <div class="section">
-    <div class="section-title">评分明细</div>
-    <div class="card" style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-      <div style="grid-column:1/-1">
-        <div class="chart-inner" id="chart-dimensions" style="height:260px"></div>
-      </div>
-      <div class="dim-bar"><div class="dim-bar-header"><span class="name">技术广度与深度</span><span class="weight">权重 30%</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{{TECH_PCT}}%;background:var(--accent)"></div></div><div class="dim-bar-score">{{TECH_SCORE}} / 5.0</div></div>
-      <div class="dim-bar"><div class="dim-bar-header"><span class="name">工程规范</span><span class="weight">权重 25%</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{{ENG_PCT}}%;background:var(--cyan)"></div></div><div class="dim-bar-score">{{ENGINEERING_SCORE}} / 5.0</div></div>
-      <div class="dim-bar"><div class="dim-bar-header"><span class="name">开源协作能力</span><span class="weight">权重 25%</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{{COLLAB_PCT}}%;background:var(--green)"></div></div><div class="dim-bar-score">{{COLLAB_SCORE}} / 5.0</div></div>
-      <div class="dim-bar"><div class="dim-bar-header"><span class="name">社区影响力</span><span class="weight">权重 20%</span></div><div class="dim-bar-bg"><div class="dim-bar-fill" style="width:{{INFLU_PCT}}%;background:var(--gold)"></div></div><div class="dim-bar-score">{{INFLUENCE_SCORE}} / 5.0</div></div>
-    </div>
-  </div>
+<div class="content">
+  <div class="section-label">Score Dimensions</div>
+  <div class="score-detail">{{DIM_BARS}}</div>
 
-  <!-- 图表区 -->
-  <div class="section">
-    <div class="section-title">数据可视化</div>
-    <div class="card-grid">
-      <div class="chart-box"><h3>维度雷达图</h3><div class="chart-inner" id="chart-radar"></div></div>
-      <div class="chart-box"><h3>贡献日历</h3><div class="chart-inner" id="chart-calendar"></div></div>
-      <div class="chart-box"><h3>语言分布</h3><div class="chart-inner" id="chart-languages"></div></div>
-      <div class="chart-box"><h3>仓库质量指标</h3><div class="chart-inner" id="chart-quality"></div></div>
-    </div>
-  </div>
+  <div class="section-label">Exhibits</div>
+  <div class="chart-box"><h3>Fig. A — 六维雷达</h3><div class="chart-inner" id="chart-radar"></div></div>
+  <div class="chart-box"><h3>Fig. B — 贡献日历</h3><div class="chart-inner" id="chart-calendar"></div></div>
+  <div class="chart-box"><h3>Fig. C — 活动构成</h3><div class="chart-inner" id="chart-activity"></div></div>
+  <div class="chart-box"><h3>Fig. D — 语言分布</h3><div class="chart-inner" id="chart-languages"></div></div>
+  <div class="chart-box full"><h3>Fig. E — 月度提交趋势</h3><div class="chart-inner" id="chart-commit-freq"></div></div>
+  <div class="chart-box full"><h3>仓库深度分析</h3><div class="chart-inner" id="chart-quality"></div></div>
 
-  <!-- 总结 -->
-  <div class="section">
-    <div class="section-title">客观总结</div>
-    <div class="summary-box">{{SUMMARY}}</div>
-  </div>
+  <div class="section-label">Top Repositories</div>
+  <div class="top-repos">{{TOP_REPOS}}</div>
 
-</div>
-
-<!-- ====== SHARE BAR (same as distill) ====== -->
-<div class="share-bar" id="share-bar">
-  <div class="share-inner">
-    <div class="share-title">分享这份评分报告</div>
-    <div class="share-buttons">
-      <button class="share-btn wechat" onclick="shareCopy('wechat')">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.952-7.062-6.122zm-2.18 2.769c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982z"/></svg>
-        微信
-      </button>
-      <button class="share-btn qq" onclick="shareCopy('qq')">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M21.395 15.035a40.548 40.548 0 0 0-.803-2.264l-1.079-2.695c.001-.032.014-.562.014-.836C19.527 4.661 17.262 0 12 0S4.473 4.661 4.473 9.24c0 .274.013.804.014.836L3.408 12.77a39.85 39.85 0 0 0-.803 2.264c-.547 1.613-.468 3.017.607 3.314.406.112.898.007 1.355-.195.138.243.298.473.486.684 1.055 1.186 2.273 1.595 3.145 1.595.261 0 .511-.04.748-.112.268.838.935 1.489 1.76 1.793v.733c0 .426-.115.751-.327.947-.212.195-.523.297-.907.317a.516.516 0 0 0-.484.519c0 .285.232.517.517.517h8.928a.517.517 0 0 0 .517-.517.516.516 0 0 0-.484-.519c-.385-.02-.695-.122-.907-.317-.212-.196-.327-.521-.327-.947v-.733c.825-.304 1.492-.955 1.76-1.793.237.072.487.112.748.112.872 0 2.09-.409 3.145-1.595.188-.211.348-.44.486-.684.457.202.949.307 1.355.195 1.075-.297 1.154-1.701.607-3.314z"/></svg>
-        QQ
-      </button>
-      <button class="share-btn twitter" onclick="shareTwitter()">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-        X
-      </button>
-      <button class="share-btn copy" onclick="shareCopy('all')">
-        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        复制
-      </button>
-    </div>
-    <div class="share-tip" id="share-tip"></div>
+  <div class="section-label">Verdict</div>
+  <div class="strengths-weaknesses">
+    <div class="sw-col"><h3>Strengths</h3><ul>{{STRENGTHS}}</ul></div>
+    <div class="sw-col"><h3>Weaknesses</h3><ul>{{WEAKNESSES}}</ul></div>
   </div>
 </div>
 
-<style>
-  .share-bar{background:linear-gradient(135deg,#1a1a2e 0%,#0f0f1a 100%);border-top:1px solid rgba(99,102,241,0.15);padding:40px 24px;text-align:center}
-  .share-inner{max-width:600px;margin:0 auto}
-  .share-title{font-size:16px;font-weight:600;color:var(--muted);margin-bottom:20px}
-  .share-buttons{display:flex;justify-content:center;gap:12px;flex-wrap:wrap}
-  .share-btn{display:flex;align-items:center;gap:6px;padding:12px 20px;border-radius:12px;border:1px solid var(--border);background:var(--card);color:var(--text);font-size:13px;font-weight:500;cursor:pointer;transition:all 0.2s}
-  .share-btn:hover{transform:translateY(-2px)}
-  .share-btn.wechat:hover{background:#07c160;border-color:#07c160;color:#fff}
-  .share-btn.qq:hover{background:#12b7f5;border-color:#12b7f5;color:#fff}
-  .share-btn.twitter:hover{background:#1d9bf0;border-color:#1d9bf0;color:#fff}
-  .share-btn.copy:hover{background:var(--accent);border-color:var(--accent);color:#fff}
-  .share-tip{margin-top:14px;font-size:13px;color:var(--cyan);min-height:20px}
-  .toast{position:fixed;top:20px;left:50%;transform:translateX(-50%);background:var(--accent);color:#fff;padding:10px 24px;border-radius:8px;font-size:14px;z-index:9999;animation:toastIn 0.3s ease,toastOut 0.3s ease 2s forwards}
-  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(-10px)}}
-  @keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(-10px)}}
-  @media(max-width:640px){.card-grid{grid-template-columns:1fr}}
-</style>
+<div class="share-section">
+  <span class="share-label">Share this report</span>
+  <div class="share-buttons">
+    <button class="share-btn wechat" onclick="shareCopy('wechat')">微信</button>
+    <button class="share-btn qq" onclick="shareCopy('qq')">QQ</button>
+    <button class="share-btn x" onclick="shareTwitter()">X</button>
+    <button class="share-btn" onclick="shareCopy('all')">复制</button>
+  </div>
+</div>
+<div class="star-footer">
+  <span>&copy; GitHub Profiler</span>
+  <a href="https://github.com/therain2020/github-profiler" target="_blank" rel="noopener">Star on GitHub &rarr;</a>
+</div>
 
 <script>
 (function(){
-  var purple='#6366f1',cyan='#06b6d4',gold='#f59e0b',green='#10b981';
+  var paper='#faf8f5',ink='#1a1a1a',muted='#6b6b6b',rule='#e5e0d8';
+  var colors=['#d4451a','#c27803','#2a7d4f','#2563eb','#8b5cf6','#ec4899'];
 
-  // ── 维度雷达 ──
-  (function(){
-    var c=echarts.init(document.getElementById('chart-radar'));
-    c.setOption({
-      radar:{center:['50%','55%'],radius:'70%',axisName:{color:'#94a3b8',fontSize:11},splitArea:{areaStyle:{color:['rgba(255,255,255,0.02)','rgba(255,255,255,0.04)']}},axisLine:{lineStyle:{color:'rgba(255,255,255,0.1)'}},splitLine:{lineStyle:{color:'rgba(255,255,255,0.08)'}},indicator:[{name:'技术',max:5},{name:'工程',max:5},{name:'协作',max:5},{name:'影响力',max:5}]},
-      series:[{type:'radar',data:[{value:[{{TECH_SCORE}},{{ENGINEERING_SCORE}},{{COLLAB_SCORE}},{{INFLUENCE_SCORE}}],name:'@{{USERNAME}}',areaStyle:{color:'rgba(99,102,241,0.2)'},lineStyle:{color:purple,width:2},itemStyle:{color:purple}}]}]
-    });
-  })();
+  // Radar
+  (function(){var c=echarts.init(document.getElementById('chart-radar'));var labels={{RADAR_LABELS}};var vals={{RADAR_VALUES}};c.setOption({radar:{center:['50%','55%'],radius:'70%',axisName:{color:muted,fontSize:11},splitArea:{areaStyle:{color:['rgba(0,0,0,0.01)','rgba(0,0,0,0.03)']}},axisLine:{lineStyle:{color:rule}},splitLine:{lineStyle:{color:rule}},indicator:labels.map(function(l){return{name:l,max:100}})},series:[{type:'radar',data:[{value:vals,name:'@{{USERNAME}}',areaStyle:{color:'rgba(212,69,26,0.1)'},lineStyle:{color:'#d4451a',width:2},itemStyle:{color:'#d4451a'}}]}]})})();
 
-  // ── 贡献日历 ──
-  (function(){
-    var c=echarts.init(document.getElementById('chart-calendar'));
-    var data={{CALENDAR_DATA}};
-    if(data.length>0){c.setOption({tooltip:{formatter:function(p){return p.data[0]+': '+p.data[1]+' contributions'},backgroundColor:'#1a1a2e',borderColor:'#333',textStyle:{color:'#e2e8f0'}},visualMap:{min:0,max:{{CALENDAR_MAX}},orient:'horizontal',left:'center',bottom:0,inRange:{color:['#1a1a2e','#1e3a5f','#216e39','#30a14e','#40c463','#9be9a8']},textStyle:{color:'#94a3b8'}},calendar:{range:'{{CALENDAR_RANGE}}',cellSize:['auto',14],splitLine:{lineStyle:{color:'rgba(255,255,255,0.04)'}},itemStyle:{borderColor:'rgba(255,255,255,0.06)',borderWidth:2,borderRadius:2},dayLabel:{color:'#94a3b8'},monthLabel:{color:'#94a3b8'},yearLabel:{show:false}},series:[{type:'heatmap',coordinateSystem:'calendar',data:data}]});}else{c.setOption({title:{text:'无每日贡献数据',left:'center',top:'center',textStyle:{color:'#94a3b8',fontSize:14}}})}
-  })();
+  // Calendar
+  (function(){var c=echarts.init(document.getElementById('chart-calendar'));var d={{CALENDAR_DATA}};if(d.length>0){c.setOption({tooltip:{formatter:function(p){return p.data[0]+': '+p.data[1]+' contributions'},backgroundColor:paper,borderColor:rule,textStyle:{color:ink}},visualMap:{min:0,max:{{CALENDAR_MAX}},orient:'horizontal',left:'center',bottom:0,inRange:{color:['#f5f0e8','#f0d8c0','#e8a87c','#d4451a','#a8321a','#6b1a0a']},textStyle:{color:muted}},calendar:{range:'{{CALENDAR_RANGE}}',cellSize:['auto',14],splitLine:{lineStyle:{color:rule}},itemStyle:{borderColor:rule,borderWidth:1,borderRadius:1},dayLabel:{color:muted},monthLabel:{color:muted},yearLabel:{show:false}},series:[{type:'heatmap',coordinateSystem:'calendar',data:d}]})}else{c.setOption({title:{text:'No daily contribution data',left:'center',top:'center',textStyle:{color:muted,fontSize:14}}})}})();
 
-  // ── 语言分布 ──
-  (function(){var c=echarts.init(document.getElementById('chart-languages'));var d={{LANGUAGE_DATA}};if(d.length>0){c.setOption({series:[{type:'treemap',data:d,roam:false,label:{show:true,formatter:function(p){return p.name+'\n'+p.value+' repos'},color:'#e2e8f0',fontSize:12},levels:[{itemStyle:{borderColor:'#0f0f1a',borderWidth:3,gapWidth:2}}],color:[purple,cyan,gold,green,'#ec4899','#8b5cf6']}]});}else{c.setOption({title:{text:'暂无语言数据',left:'center',top:'center',textStyle:{color:'#94a3b8',fontSize:14}}})}
-  })();
+  // Activity breakdown
+  (function(){var c=echarts.init(document.getElementById('chart-activity'));var d={{ACTIVITY_BREAKDOWN_DATA}};c.setOption({tooltip:{trigger:'item'},series:[{type:'pie',data:d,radius:['40%','70%'],label:{color:ink,fontSize:12,fontFamily:'JetBrains Mono,monospace'},itemStyle:{borderColor:paper,borderWidth:2},color:colors}]})})();
 
-  // ── 仓库质量 ──
-  (function(){var c=echarts.init(document.getElementById('chart-quality'));var d={{QUALITY_DATA}};if(d.length>0){c.setOption({radar:{center:['50%','55%'],radius:'65%',axisName:{color:'#94a3b8',fontSize:10},splitArea:{areaStyle:{color:['rgba(255,255,255,0.02)','rgba(255,255,255,0.04)']}},axisLine:{lineStyle:{color:'rgba(255,255,255,0.1)'}},splitLine:{lineStyle:{color:'rgba(255,255,255,0.08)'}},indicator:[{name:'README',max:100},{name:'License',max:100},{name:'CI/CD',max:100},{name:'Workflows',max:100},{name:'Deploy',max:100}]},series:[{type:'radar',data:d,areaStyle:{color:'rgba(6,182,212,0.15)'},lineStyle:{color:cyan,width:2},itemStyle:{color:cyan}}]});}else{c.setOption({title:{text:'需 Token 获取质量数据',left:'center',top:'center',textStyle:{color:'#94a3b8',fontSize:14}}})}
-  })();
+  // Languages
+  (function(){var c=echarts.init(document.getElementById('chart-languages'));var d={{LANGUAGE_DATA}};if(d.length>0){c.setOption({series:[{type:'treemap',data:d,roam:false,label:{show:true,formatter:function(p){return p.name+'\n'+p.value+' repos'},color:ink,fontSize:12,fontFamily:'JetBrains Mono,monospace'},levels:[{itemStyle:{borderColor:paper,borderWidth:2,gapWidth:1}}],color:colors}]})}else{c.setOption({title:{text:'No language data',left:'center',top:'center',textStyle:{color:muted,fontSize:14}}})}})();
 
-  window.addEventListener('resize',function(){['chart-radar','chart-calendar','chart-languages','chart-quality'].forEach(function(id){var d=document.getElementById(id);if(d){var i=echarts.getInstanceByDom(d);if(i)i.resize()}})});
-})();
+  // Commit frequency
+  (function(){var c=echarts.init(document.getElementById('chart-commit-freq'));var d={{COMMIT_FREQ_DATA}};c.setOption({tooltip:{trigger:'axis'},xAxis:{type:'category',data:d.map(function(i){return i[0]}),axisLine:{lineStyle:{color:rule}},axisLabel:{color:muted,fontSize:10}},yAxis:{type:'value',axisLine:{lineStyle:{color:rule}},axisLabel:{color:muted},splitLine:{lineStyle:{color:rule}}},series:[{type:'bar',data:d.map(function(i){return i[1]}),itemStyle:{color:'#d4451a',borderRadius:[3,3,0,0]}}]})})();
+
+  // Quality radar
+  (function(){var c=echarts.init(document.getElementById('chart-quality'));var d={{QUALITY_DATA}};if(d.length>0){c.setOption({radar:{center:['50%','55%'],radius:'65%',axisName:{color:muted,fontSize:10},splitArea:{areaStyle:{color:['rgba(0,0,0,0.01)','rgba(0,0,0,0.03)']}},axisLine:{lineStyle:{color:rule}},splitLine:{lineStyle:{color:rule}},indicator:[{name:'README',max:100},{name:'Commits',max:100},{name:'Commit规范',max:100},{name:'Issue',max:100},{name:'README规模',max:100}]},series:[{type:'radar',data:d,areaStyle:{color:'rgba(42,125,79,0.1)'},lineStyle:{color:'#2a7d4f',width:2},itemStyle:{color:'#2a7d4f'}}]})}else{c.setOption({title:{text:'Token required',left:'center',top:'center',textStyle:{color:muted,fontSize:14}}})}})();
+
+  window.addEventListener('resize',function(){['chart-radar','chart-calendar','chart-activity','chart-languages','chart-commit-freq','chart-quality'].forEach(function(id){var d=document.getElementById(id);if(d){var i=echarts.getInstanceByDom(d);if(i)i.resize()}})})})();
 
 function showToast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},2500)}
-var SHARE_TEXT='📊 @{{USERNAME}} GitHub评分\n\n综合 {{COMPOSITE_SCORE}}/5.0 {{GRADE_LABEL}}\n🔧技术 {{TECH_SCORE}} 📐工程 {{ENGINEERING_SCORE}}\n🤝协作 {{COLLAB_SCORE}} 🌟影响力 {{INFLUENCE_SCORE}}\n\n📝 {{SUMMARY}}\n\n评分工具: github-profiler\nhttps://github.com/therain2020/github-profiler';
+var REPO='https://github.com/therain2020/github-profiler';
+var S='@{{USERNAME}} GitHub评分 {{OVERALL_SCORE}}/100\n\n{{TAGLINE}}\n\n⭐ Star us: '+REPO;
 function shareCopy(p){
-  var t=SHARE_TEXT;
-  if(p==='wechat')t='【GitHub评分】@{{USERNAME}} 综合 {{COMPOSITE_SCORE}}/5.0\n\n🔧技术{{TECH_SCORE}} | 📐工程{{ENGINEERING_SCORE}} | 🤝协作{{COLLAB_SCORE}} | 🌟影响力{{INFLUENCE_SCORE}}\n\n📝 {{SUMMARY}}\n\n— github-profiler';
-  if(p==='qq')t='📊 @{{USERNAME}}: {{COMPOSITE_SCORE}}/5.0 ({{GRADE_LABEL}})\n技术{{TECH_SCORE}} 工程{{ENGINEERING_SCORE}} 协作{{COLLAB_SCORE}} 影响力{{INFLUENCE_SCORE}}\n\n{{SUMMARY}}\n\ngithub-profiler';
-  if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){showToast('已复制！')})}else{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('已复制！')}
+  var t=S;
+  if(p==='wechat')t='【GitHub评分】@{{USERNAME}} {{OVERALL_SCORE}}/100 ({{GRADE}}级)\n\n{{TAGLINE}}\n\n— github-profiler\n⭐ 求 Star: '+REPO;
+  if(p==='qq')t='@{{USERNAME}}: {{OVERALL_SCORE}}/100 {{GRADE}}级\n{{TAGLINE}}\n\n⭐ Star: '+REPO;
+  if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){showToast('Copied')})}else{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('Copied')}
 }
-function shareTwitter(){window.open('https://x.com/intent/tweet?text='+encodeURIComponent('📊 @{{USERNAME}} GitHub评分 {{COMPOSITE_SCORE}}/5.0 — {{SUMMARY}}')+'&url='+encodeURIComponent('https://github.com/therain2020/github-profiler'),'_blank')}
+function shareTwitter(){window.open('https://x.com/intent/tweet?text='+encodeURIComponent('@{{USERNAME}} {{OVERALL_SCORE}}/100 — {{TAGLINE}} ⭐')+'&url='+encodeURIComponent(REPO),'_blank')}
 </script>
-
 </body>
 </html>

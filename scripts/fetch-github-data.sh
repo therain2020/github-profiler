@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # ============================================================================
-# fetch-github-data.sh — 生产可用版 GitHub 用户数据抓取器
+# fetch-github-data.sh v2.2.0 — GitHub 用户数据抓取器（深度内容版）
 #
 # 用法:
 #   export GITHUB_TOKEN="ghp_xxxx"
@@ -250,15 +250,9 @@ fetch_repos_rest() {
     # 提取关键字段，精简输出
     local slim_page
     slim_page=$(echo "$page_data" | jq '[.[] | {
-      id, name, full_name, description, html_url, homepage,
-      language, stargazers_count, forks_count, open_issues_count,
-      license: (.license.spdx_id // null),
-      fork, archived, disabled, visibility,
-      topics: (.topics // []),
-      has_issues, has_projects, has_wiki, has_pages, has_discussions,
-      allow_forking, web_commit_signoff_required, size,
-      default_branch,
-      created_at, updated_at, pushed_at
+      name, full_name, description, html_url,
+      language, stargazers_count, forks_count,
+      fork, topics: (.topics // []), pushed_at
     }]')
 
     all_repos=$(echo "$all_repos" "$slim_page" | jq -s '.[0] + .[1]')
@@ -287,101 +281,122 @@ fetch_orgs() {
   echo "$resp" | jq '[.[] | { login, id, avatar_url, description }]'
 }
 
-# 仓库质量快照：社区健康度 + CI/CD + 部署（仅分析 top N 仓库）
-# 利用 repo:status / repo_deployment / workflow 权限
-# 并行执行 — 所有仓库同时检查，大幅减少总耗时
-fetch_repo_quality() {
-  local repos_json="$1"
-  local top_n="${2:-5}"
+# 仓库深度内容抓取（替代旧的质量快照）
+# 对 Top N 自有仓库抓取：README 全文 + 用户 commit message（仅文本，不含代码 diff）+ 用户 issue
+# 并行执行，30 次 API 调用，占配额 0.6%
+fetch_repo_deep_dive() {
+  local repos_json="$1" username="$2"
+  local top_n="${3:-10}"
 
+  # 过滤自有仓库（非 Fork），取前 top_n 个
   local repo_array
-  repo_array=$(echo "$repos_json" | jq -r ".[0:$top_n] | [.[].full_name] | .[]" | sed 's/\r$//')
+  repo_array=$(echo "$repos_json" | jq -r "[.[] | select(.fork == false)] | .[0:$top_n] | [.[].full_name] | .[]" | sed 's/\r$//')
 
   if [ -z "$repo_array" ]; then
     echo '[]'
     return 0
   fi
 
-  # 收集仓库名到数组
   local -a repos=()
   while IFS= read -r line; do
     [ -n "$line" ] && repos+=("$line")
   done <<< "$repo_array"
 
   local total=${#repos[@]}
-  info "并行检查 ${total} 个仓库的质量指标..."
-
-  # 预提取 default_branch 映射（避免每个后台任务重复 jq 扫描全量数据）
-  local db_map
-  db_map=$(echo "$repos_json" | jq -r '[.[] | {full_name, default_branch: (.default_branch // "main")}] | .[] | "\(.full_name)=\(.default_branch)"')
+  info "深度抓取 ${total} 个自有仓库（README + commit message + issue）..."
 
   local q_tmp_dir
   q_tmp_dir=$(mktemp -d)
 
-  # 每个仓库的质量检查作为后台任务并行执行
   local launched=0
   for full_name in "${repos[@]}"; do
     (
       local owner="${full_name%%/*}" repo="${full_name##*/}"
-      # 从预提取的映射中查找默认分支
-      local db=$(echo "$db_map" | grep "^${full_name}=" | cut -d= -f2-)
-      [ -z "$db" ] && db="main"
-      local community status_json workflows deployments
 
-      community=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/community/profile" 2>/dev/null || echo '{}')
-      status_json=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/commits/${db}/status" 2>/dev/null || echo '{}')
-      workflows=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/actions/workflows" 2>/dev/null || echo '{"total_count":0,"workflows":[]}')
-      deployments=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/deployments?per_page=5" 2>/dev/null || echo '[]')
+      # 1. README（base64 解码，截取前 16KB 防止超大文档）
+      local readme_text="" readme_size=0
+      local readme_resp
+      readme_resp=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/readme" 2>/dev/null || echo '{}')
+      if echo "$readme_resp" | jq -e '.content' > /dev/null 2>&1; then
+        readme_text=$(echo "$readme_resp" | python -c "import sys,json,base64; d=json.load(sys.stdin); c=d.get('content',''); print(base64.b64decode(c).decode('utf-8','replace')[:16384]) if c else ''" 2>/dev/null)
+        readme_size=$(echo "$readme_resp" | jq -r '.size // 0')
+      fi
+
+      # 2. 用户 commit message（仅 message + date，不含代码 diff/files）
+      local commits_json='[]' commit_count=0
+      local commits_resp
+      commits_resp=$(api_call "GET" "${GITHUB_API_BASE}/repos/${full_name}/commits?author=${username}&per_page=30" 2>/dev/null || echo '[]')
+      commit_count=$(echo "$commits_resp" | jq 'length')
+      if [ "$commit_count" -gt 0 ]; then
+        # 只提取 message headline + author date，不抓取代码 diff/文件变更
+        commits_json=$(echo "$commits_resp" | jq '[.[] | {message: .commit.message, date: .commit.author.date}]')
+      fi
+
+      # 3. 用户 issues（search API 按作者过滤）
+      local issues_json='[]' issue_count=0
+      local issues_resp
+      issues_resp=$(api_call "GET" "${GITHUB_API_BASE}/search/issues?q=repo:${full_name}+author:${username}+type:issue&per_page=10" 2>/dev/null || echo '{}')
+      issue_count=$(echo "$issues_resp" | jq -r '.total_count // 0')
+      if [ "$issue_count" -gt 0 ]; then
+        issues_json=$(echo "$issues_resp" | jq '[.items[] | {title, state, created_at, updated_at}]')
+      fi
+
+      # 计算质量指标（供渲染报告使用）
+      local has_readme=0
+      [ -n "$readme_text" ] && has_readme=100
+      local avg_msg_len=0
+      if [ "$commit_count" -gt 0 ]; then
+        avg_msg_len=$(echo "$commits_json" | jq '[.[].message | length] | add / length | floor')
+      fi
+      local issue_score=0
+      [ "$issue_count" -gt 0 ] && issue_score=100
 
       jq -n \
-        --arg full_name "$full_name" \
-        --argjson community "$community" \
-        --argjson status "$status_json" \
-        --argjson workflows "$workflows" \
-        --argjson deployments "$deployments" \
+        --arg repo "$full_name" \
+        --arg readme "$readme_text" \
+        --argjson readme_size "$readme_size" \
+        --argjson commits "$commits_json" \
+        --argjson commit_count "$commit_count" \
+        --argjson issues "$issues_json" \
+        --argjson issue_count "$issue_count" \
+        --argjson has_readme "$has_readme" \
+        --argjson avg_msg_len "$avg_msg_len" \
+        --argjson issue_score "$issue_score" \
         '{
-          repo: $full_name,
-          community: {
-            health_percentage: ($community.health_percentage // 0),
-            has_readme: ($community.files.readme != null),
-            has_contributing: ($community.files.contributing != null),
-            has_code_of_conduct: ($community.files.code_of_conduct != null),
-            has_license_template: ($community.files.license_template != null)
-          },
-          ci: {
-            has_status_checks: ($status.total_count > 0),
-            state: ($status.state // "unknown"),
-            check_count: ($status.total_count // 0)
-          },
-          workflows: {
-            count: ($workflows.total_count // 0),
-            names: [($workflows.workflows // [])[].name]
-          },
-          deployments: {
-            count: ($deployments | length),
-            environments: [$deployments[].environment]
+          repo: $repo,
+          readme: $readme,
+          readme_size: $readme_size,
+          commits: $commits,
+          commit_count: $commit_count,
+          issues: $issues,
+          issue_count: $issue_count,
+          quality: {
+            has_readme: $has_readme,
+            readme_bytes: $readme_size,
+            commit_count: $commit_count,
+            avg_commit_msg_len: $avg_msg_len,
+            issue_count: $issue_count
           }
         }' > "${q_tmp_dir}/${owner}___${repo}.json"
     ) &
 
-    # 每启动 3 个后台任务后稍作等待（避免瞬间大量并发触发限速）
     if [ $(( (launched + 1) % 3 )) -eq 0 ]; then
       sleep 0.5
     fi
     ((launched++))
   done
 
-  # 等待所有后台任务完成，同时显示进度
+  # 等待完成
   local progress=0
   while [ $progress -lt $total ]; do
     sleep 2
     progress=$(find "$q_tmp_dir" -name '*.json' 2>/dev/null | wc -l | tr -d ' ')
-    printf "\r  [进度] %d/%d 个仓库检查完成..." "$progress" "$total" >&2
+    printf "\r  [进度] %d/%d 个仓库深度抓取完成..." "$progress" "$total" >&2
   done
   echo "" >&2
-  ok "所有仓库质量检查完成"
+  ok "所有仓库深度抓取完成"
 
-  # 按原始顺序收集结果
+  # 按顺序收集
   local results="["
   local first=true
   for full_name in "${repos[@]}"; do
@@ -390,7 +405,7 @@ fetch_repo_quality() {
     if [ -f "$f" ]; then
       results+=$(<"$f")
     else
-      results+="{\"repo\":\"$full_name\",\"error\":\"check failed\"}"
+      results+="{\"repo\":\"$full_name\",\"error\":\"deep dive failed\"}"
     fi
   done
   results+="]"
@@ -601,20 +616,20 @@ merge_output() {
   local tmp_dir="$1" username="$2"
 
   jq -n \
-    --slurpfile profile  "${tmp_dir}/profile.json" \
-    --slurpfile repos    "${tmp_dir}/repos.json" \
-    --slurpfile orgs     "${tmp_dir}/orgs.json" \
-    --slurpfile contrib  "${tmp_dir}/contrib.json" \
-    --slurpfile activity "${tmp_dir}/activity.json" \
-    --slurpfile quality  "${tmp_dir}/quality.json" \
-    --slurpfile gists    "${tmp_dir}/gists.json" \
+    --slurpfile profile   "${tmp_dir}/profile.json" \
+    --slurpfile repos     "${tmp_dir}/repos.json" \
+    --slurpfile orgs      "${tmp_dir}/orgs.json" \
+    --slurpfile contrib   "${tmp_dir}/contrib.json" \
+    --slurpfile activity  "${tmp_dir}/activity.json" \
+    --slurpfile deep_dive "${tmp_dir}/deep_dive.json" \
+    --slurpfile gists     "${tmp_dir}/gists.json" \
     --arg username "$username" \
     --arg fetched_at "$(date -Iseconds)" \
     '{
-      meta: { username: $username, fetched_at: $fetched_at, version: "2.1.0" },
+      meta: { username: $username, fetched_at: $fetched_at, version: "2.2.0" },
       profile: $profile[0],
       repositories: $repos[0],
-      quality: $quality[0],
+      deep_dive: $deep_dive[0],
       organizations: $orgs[0],
       gists: $gists[0],
       contributions: $contrib[0],
@@ -853,19 +868,19 @@ main() {
   fi
   ok "阶段5/7: 活动数据获取完成"
 
-  # --- 阶段6: 仓库质量快照 (需 Token: repo:status + repo_deployment + workflow) ---
-  local p6_file="${tmp_dir}/quality.json"
+  # --- 阶段6: 仓库深度内容抓取 (需 Token: README + commit message + issue) ---
+  local p6_file="${tmp_dir}/deep_dive.json"
   if [ "$HAS_TOKEN" = true ]; then
-    ensure_rate_quota 20 core "REST" || true
-    fetch_repo_quality "$(cat "$p2_file")" 5 > "$p6_file" || {
-      warn "仓库质量检查失败，使用空数据"
+    ensure_rate_quota 30 core "REST" || true
+    fetch_repo_deep_dive "$(cat "$p2_file")" "$username" 10 > "$p6_file" || {
+      warn "仓库深度抓取失败，使用空数据"
       echo '[]' > "$p6_file"
     }
   else
-    info "阶段6/7: 仓库质量快照（需 Token，跳过）"
+    info "阶段6/7: 仓库深度抓取（需 Token，跳过）"
     echo '[]' > "$p6_file"
   fi
-  ok "阶段6/7: 仓库质量快照获取完成"
+  ok "阶段6/7: 仓库深度抓取完成"
 
   # --- 阶段7: 公开 Gists (需 Token: gist 权限) ---
   local p7_file="${tmp_dir}/gists.json"

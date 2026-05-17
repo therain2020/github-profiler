@@ -4,470 +4,154 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>GitHub Distill — @{{USERNAME}}</title>
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;0,900;1,700&family=JetBrains+Mono:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/echarts@5.5.0/dist/echarts.min.js"></script>
 <style>
   :root {
-    --bg: #0f0f1a;
-    --card: #1a1a2e;
-    --card2: #16213e;
-    --accent: #7c3aed;
-    --accent2: #06b6d4;
-    --gold: #f59e0b;
-    --text: #e2e8f0;
-    --muted: #94a3b8;
-    --border: rgba(255,255,255,0.06);
-    --radius: 16px;
+    --paper: #faf8f5; --ink: #1a1a1a; --ink-muted: #6b6b6b; --ink-faint: #bababa;
+    --rule: #e5e0d8; --rule-light: #f0ede6; --card-bg: #ffffff;
+    --accent: #7c3aed; --accent2: #ec4899; --accent3: #06b6d4;
+    --font-display: 'Playfair Display', 'Noto Serif SC', Georgia, serif;
+    --font-mono: 'JetBrains Mono', monospace;
+    --font-body: 'Noto Sans SC', -apple-system, sans-serif;
   }
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    line-height: 1.6;
-    min-height: 100vh;
-  }
+  *,*::before,*::after{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:var(--font-body);background:var(--paper);color:var(--ink);line-height:1.7;-webkit-font-smoothing:antialiased}
 
-  /* Hero */
-  .hero {
-    text-align: center;
-    padding: 80px 24px 64px;
-    background: radial-gradient(ellipse at 50% 0%, rgba(124,58,237,0.15) 0%, transparent 60%);
-  }
-  .hero-avatar {
-    width: 96px; height: 96px; border-radius: 50%;
-    border: 3px solid var(--accent);
-    margin-bottom: 20px;
-    box-shadow: 0 0 40px rgba(124,58,237,0.3);
-  }
-  .hero-username { font-size: 40px; font-weight: 800; letter-spacing: -1px; }
-  .hero-distillate {
-    font-size: 20px; color: var(--muted);
-    max-width: 560px; margin: 16px auto 0;
-    font-style: italic; line-height: 1.7;
-  }
-  .hero-meta {
-    display: flex; justify-content: center; gap: 32px; margin-top: 24px;
-    font-size: 13px; color: var(--muted);
-  }
-  .hero-meta span { color: var(--accent2); font-weight: 600; }
+  .masthead{border-bottom:1px solid var(--ink);padding:28px 40px;display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11px;text-transform:uppercase;letter-spacing:2px;color:var(--ink-muted)}
+  .masthead span:last-child{color:var(--ink-faint)}
 
-  /* Layout */
-  .container { max-width: 960px; margin: 0 auto; padding: 0 24px 80px; }
-  .section { margin-top: 40px; }
+  /* Hero identity */
+  .hero{padding:60px 40px 48px;max-width:1100px;margin:0 auto;display:grid;grid-template-columns:1fr 1fr;gap:48px}
+  .identity-card{display:flex;flex-direction:column;justify-content:center}
+  .identity-kicker{font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+  .identity-name{font-family:var(--font-display);font-size:48px;font-weight:900;line-height:1.05}
+  .identity-role{font-family:var(--font-mono);font-size:13px;color:var(--ink-muted);margin-top:8px}
+  .identity-detail{font-size:14px;color:var(--ink-muted);margin-top:12px;line-height:1.6}
 
-  /* Section title */
-  .section-title {
-    font-size: 22px; font-weight: 700; margin-bottom: 24px;
-    display: flex; align-items: center; gap: 10px;
-  }
-  .section-title::before {
-    content: ''; display: inline-block;
-    width: 4px; height: 24px; border-radius: 2px;
-    background: linear-gradient(180deg, var(--accent), var(--accent2));
-  }
+  .mirror-card{background:var(--card-bg);border:1px solid var(--ink);padding:28px;display:flex;flex-direction:column;gap:12px}
+  .mirror-alias{font-family:var(--font-display);font-size:28px;font-weight:900;color:var(--accent)}
+  .mirror-realm{font-size:13px;color:var(--ink-muted);font-style:italic}
+  .mirror-tags{display:flex;gap:6px;flex-wrap:wrap}
+  .persona-tag{font-family:var(--font-mono);font-size:10px;padding:3px 10px;border:1px solid var(--ink);letter-spacing:0.5px}
+  .mirror-quote{font-family:var(--font-display);font-size:16px;font-style:italic;line-height:1.5;padding-top:8px;border-top:1px solid var(--rule)}
+  .mirror-sim{font-family:var(--font-mono);font-size:32px;font-weight:700;color:var(--accent)}
 
-  /* Cards */
-  .card {
-    background: var(--card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    padding: 28px;
-    margin-bottom: 16px;
-  }
-  .card-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .card-grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+  .content{max-width:1100px;margin:0 auto;padding:0 40px 80px;display:grid;grid-template-columns:1fr 1fr;gap:0;border-top:1px solid var(--ink)}
+  .section-label{grid-column:1/-1;font-family:var(--font-mono);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--ink-faint);padding:40px 0 20px;border-bottom:1px solid var(--rule);margin-bottom:24px}
 
-  /* Persona */
-  .persona-text { font-size: 16px; line-height: 1.9; color: var(--text); }
+  .chart-box{padding:24px 0;border-bottom:1px solid var(--rule-light)}
+  .chart-box.full{grid-column:1/-1}
+  .chart-box:nth-child(odd){padding-right:24px;border-right:1px solid var(--rule-light)}
+  .chart-box:nth-child(even){padding-left:24px}
+  .chart-box h3{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-muted);margin-bottom:16px}
+  .chart-inner{width:100%;height:320px}
 
-  /* DNA */
-  .dna-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .chart-box { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
-  .chart-box h3 { font-size: 14px; color: var(--muted); margin-bottom: 12px; text-transform: uppercase; letter-spacing: 1px; }
-  .chart-inner { width: 100%; height: 320px; }
+  .stat-grid{grid-column:1/-1;display:grid;grid-template-columns:repeat(5,1fr);gap:0;border-bottom:1px solid var(--rule);padding:24px 0;margin-bottom:24px}
+  .stat-item{text-align:center;padding:8px;border-right:1px solid var(--rule-light)}
+  .stat-item:last-child{border-right:none}
+  .stat-num{font-family:var(--font-display);font-size:32px;font-weight:900;line-height:1}
+  .stat-label{font-family:var(--font-mono);font-size:10px;color:var(--ink-muted);margin-top:6px;letter-spacing:1px;text-transform:uppercase}
 
-  .stat-row { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-bottom: 1px solid var(--border); }
-  .stat-row:last-child { border-bottom: none; }
-  .stat-label { color: var(--muted); font-size: 14px; }
-  .stat-value { font-weight: 700; font-size: 16px; }
-  .stat-bar { flex: 1; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; margin: 0 16px; overflow: hidden; }
-  .stat-fill { height: 100%; border-radius: 3px; }
-  .fill-purple { background: var(--accent); }
-  .fill-cyan { background: var(--accent2); }
-  .fill-gold { background: var(--gold); }
+  .cloud-box{grid-column:1/-1;padding:24px 0;display:flex;flex-wrap:wrap;gap:10px;justify-content:center}
+  .cloud-tag{font-family:var(--font-mono);font-size:14px;padding:4px 12px;border:1px solid var(--rule);color:var(--ink);border-radius:2px;white-space:nowrap}
 
-  /* Hidden Self */
-  .hidden-card {
-    background: var(--card2);
-    border-left: 3px solid var(--accent);
-    border-radius: 0 var(--radius) var(--radius) 0;
-    padding: 20px 24px;
-    margin-bottom: 12px;
-  }
-  .hidden-card .signal { font-size: 13px; color: var(--accent2); font-weight: 600; margin-bottom: 4px; }
-  .hidden-card .insight { font-size: 15px; color: var(--text); }
-
-  /* RPG Card */
-  .rpg-card {
-    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
-    border: 2px solid var(--gold);
-    border-radius: var(--radius);
-    padding: 32px;
-    position: relative;
-    overflow: hidden;
-  }
-  .rpg-card::before {
-    content: ''; position: absolute;
-    top: -50%; right: -50%; width: 100%; height: 100%;
-    background: radial-gradient(circle, rgba(245,158,11,0.06) 0%, transparent 70%);
-  }
-  .rpg-header { display: flex; align-items: center; gap: 20px; margin-bottom: 24px; position: relative; }
-  .rpg-class-icon { font-size: 48px; }
-  .rpg-class-name { font-size: 24px; font-weight: 700; }
-  .rpg-level {
-    font-size: 13px; color: var(--gold); font-weight: 600;
-    background: rgba(245,158,11,0.1); padding: 4px 12px; border-radius: 20px;
-  }
-  .rpg-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; position: relative; }
-  .rpg-stat { display: flex; align-items: flex-start; gap: 8px; }
-  .rpg-stat-icon { font-size: 20px; flex-shrink: 0; margin-top: 1px; }
-  .rpg-stat-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
-  .rpg-stat-value { font-size: 14px; font-weight: 500; margin-top: 2px; }
-
-  /* Responsive */
-  @media (max-width: 640px) {
-    .card-grid, .dna-grid, .rpg-stats { grid-template-columns: 1fr; }
-    .hero-username { font-size: 28px; }
-    .hero-distillate { font-size: 16px; }
-  }
+  /* Share */
+  .share-section{max-width:1100px;margin:0 auto;padding:32px 40px;border-top:1px solid var(--ink);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px}
+  .share-label{font-family:var(--font-mono);font-size:10px;letter-spacing:2px;text-transform:uppercase;color:var(--ink-muted)}
+  .share-buttons{display:flex;gap:6px}
+  .share-btn{font-family:var(--font-mono);font-size:11px;padding:6px 14px;border:1px solid var(--ink);background:transparent;color:var(--ink);cursor:pointer;transition:all 0.15s;letter-spacing:0.5px;display:flex;align-items:center;gap:5px}
+  .share-btn:hover{background:var(--ink);color:var(--paper)}
+  .share-btn.wechat:hover{background:#07c160;border-color:#07c160;color:#fff}
+  .share-btn.qq:hover{background:#12b7f5;border-color:#12b7f5;color:#fff}
+  .share-btn.x:hover{background:#1d9bf0;border-color:#1d9bf0;color:#fff}
+  .star-footer{max-width:1100px;margin:0 auto;padding:20px 40px 60px;font-family:var(--font-mono);font-size:11px;color:var(--ink-muted);display:flex;justify-content:space-between;align-items:center;border-top:1px solid var(--rule)}
+  .star-footer a{color:var(--ink);text-decoration:none;border-bottom:1px solid var(--rule)}
+  .star-footer a:hover{border-color:var(--ink)}
+  .toast{position:fixed;bottom:40px;left:50%;transform:translateX(-50%);background:var(--ink);color:var(--paper);padding:10px 28px;font-family:var(--font-mono);font-size:12px;z-index:9999;animation:toastIn .3s ease,toastOut .3s ease 2s forwards}
+  @keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}}
+  @keyframes toastOut{to{opacity:0;transform:translateX(-50%) translateY(-10px)}}
+  @media(max-width:720px){.hero{grid-template-columns:1fr}.content{grid-template-columns:1fr}.chart-box:nth-child(odd){padding-right:0;border-right:none}.chart-box:nth-child(even){padding-left:0}.stat-grid{grid-template-columns:repeat(3,1fr)}.stat-item:nth-child(3){border-right:none}.masthead,.hero,.content,.share-section,.star-footer{padding-left:24px;padding-right:24px}}
 </style>
 </head>
 <body>
+<div class="masthead"><span>GitHub Distill</span><span>Digital Mirror — @{{USERNAME}}</span></div>
 
-<!-- ====== HERO ====== -->
 <div class="hero">
-  <img class="hero-avatar" src="{{AVATAR_URL}}" alt="{{USERNAME}}"
-       onerror="this.style.display='none'">
-  <div class="hero-username">@{{USERNAME}}</div>
-  <div class="hero-distillate">{{DISTILLATE}}</div>
-  <div class="hero-meta">
-    <div>母语 <span>{{NATIVE_LANGUAGE}}</span></div>
-    <div>范式 <span>{{DOMINANT_PARADIGM}}</span></div>
-    <div>温度 <span>{{SOCIAL_TEMPERATURE}}</span></div>
+  <div class="identity-card">
+    <div class="identity-kicker">Distilled Self</div>
+    <div class="identity-name">{{PRIMARY_LANGUAGE}} {{TECH_ROLE}}</div>
+    <p class="identity-detail">
+      协作风格：{{COLLAB_STYLE}}<br>
+      活跃节奏：{{ACTIVITY_CRON}}<br>
+      文档品味：{{DOC_STYLE}}<br>
+      探索指数：{{EXPLORATION_SCORE}} / 100
+    </p>
+  </div>
+  <div class="mirror-card">
+    <div class="mirror-alias">{{ALIAS}}</div>
+    <div class="mirror-realm">{{REALM}}</div>
+    <div class="mirror-tags">{{PERSONALITY_TAGS}}</div>
+    <div class="mirror-quote">&ldquo;{{QUOTE}}&rdquo;</div>
+    <div class="mirror-sim">{{SIMILARITY}}% <span style="font-size:12px;color:var(--ink-muted)">相似度</span></div>
   </div>
 </div>
 
-<div class="container">
-
-  <!-- ====== PERSONA ====== -->
-  <div class="section" id="persona">
-    <div class="section-title">人物画像</div>
-    <div class="card">
-      <div class="persona-text">{{PERSONA}}</div>
-    </div>
+<div class="content">
+  <div class="section-label">Behavior Summary</div>
+  <div class="stat-grid">
+    <div class="stat-item"><div class="stat-num">{{TOTAL_COMMITS}}</div><div class="stat-label">Commits</div></div>
+    <div class="stat-item"><div class="stat-num">{{TOTAL_PRS}}</div><div class="stat-label">PRs</div></div>
+    <div class="stat-item"><div class="stat-num">{{MERGE_RATE}}%</div><div class="stat-label">Merge Rate</div></div>
+    <div class="stat-item"><div class="stat-num">{{AVG_MSG_LEN}}</div><div class="stat-label">Avg Msg Len</div></div>
+    <div class="stat-item"><div class="stat-num">{{REPO_COUNT}}</div><div class="stat-label">Original Repos</div></div>
   </div>
 
-  <!-- ====== DNA ====== -->
-  <div class="section" id="dna">
-    <div class="section-title">技术 DNA</div>
-    <div class="dna-grid">
-      <div class="chart-box">
-        <h3>思维范式</h3>
-        <div class="chart-inner" id="chart-paradigm"></div>
-      </div>
-      <div class="chart-box">
-        <h3>时间纹理</h3>
-        <div class="chart-inner" id="chart-calendar"></div>
-      </div>
-      <div class="chart-box">
-        <h3>语言分布</h3>
-        <div class="chart-inner" id="chart-languages"></div>
-      </div>
-      <div class="chart-box">
-        <h3>社交温度</h3>
-        <div class="chart-inner" id="chart-social"></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ====== HIDDEN SELF ====== -->
-  <div class="section" id="hidden">
-    <div class="section-title">隐藏自我</div>
-    {{HIDDEN_SELF_CARDS}}
-  </div>
-
-  <!-- ====== RPG ====== -->
-  <div class="section" id="rpg">
-    <div class="section-title">世界上另一个 @{{USERNAME}}</div>
-    <div class="rpg-card">
-      <div class="rpg-header">
-        <div class="rpg-class-icon">{{RPG_ICON}}</div>
-        <div>
-          <div class="rpg-class-name">{{RPG_CLASS}}</div>
-          <div class="rpg-level" style="margin-top:6px;display:inline-block">{{RPG_LEVEL}}</div>
-        </div>
-      </div>
-      <div class="rpg-stats">
-        <div class="rpg-stat">
-          <div class="rpg-stat-icon">⚔️</div>
-          <div>
-            <div class="rpg-stat-label">主修技能</div>
-            <div class="rpg-stat-value">{{SKILL_MAJOR}}</div>
-          </div>
-        </div>
-        <div class="rpg-stat">
-          <div class="rpg-stat-icon">🔮</div>
-          <div>
-            <div class="rpg-stat-label">辅修技能</div>
-            <div class="rpg-stat-value">{{SKILL_MINOR}}</div>
-          </div>
-        </div>
-        <div class="rpg-stat">
-          <div class="rpg-stat-icon">✨</div>
-          <div>
-            <div class="rpg-stat-label">隐藏天赋</div>
-            <div class="rpg-stat-value">{{SKILL_HIDDEN}}</div>
-          </div>
-        </div>
-        <div class="rpg-stat">
-          <div class="rpg-stat-icon">🎒</div>
-          <div>
-            <div class="rpg-stat-label">珍贵物品</div>
-            <div class="rpg-stat-value">{{TREASURE}}</div>
-          </div>
-        </div>
-        <div class="rpg-stat">
-          <div class="rpg-stat-icon">💎</div>
-          <div>
-            <div class="rpg-stat-label">被忽略的神器</div>
-            <div class="rpg-stat-value">{{HIDDEN_GEM}}</div>
-          </div>
-        </div>
-        <div class="rpg-stat">
-          <div class="rpg-stat-icon">👥</div>
-          <div>
-            <div class="rpg-stat-label">队伍状态</div>
-            <div class="rpg-stat-value">{{PARTY_STATUS}}</div>
-          </div>
-        </div>
-        <div class="rpg-stat" style="grid-column: 1 / -1; margin-top: 8px;">
-          <div class="rpg-stat-icon">⚡</div>
-          <div>
-            <div class="rpg-stat-label">主线任务</div>
-            <div class="rpg-stat-value">{{MAIN_QUEST}}</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
+  <div class="section-label">Exhibits</div>
+  <div class="chart-box full"><h3>六维人格镜像 — 真实 vs 镜像</h3><div class="chart-inner" id="chart-radar-dual"></div></div>
+  <div class="chart-box"><h3>提交时段分布 (24h)</h3><div class="chart-inner" id="chart-hourly"></div></div>
+  <div class="chart-box"><h3>星期分布</h3><div class="chart-inner" id="chart-weekday"></div></div>
+  <div class="chart-box full"><h3>语言词云</h3><div class="chart-inner" id="chart-cloud"></div></div>
 </div>
 
-<!-- ====== ECharts ====== -->
-<script>
-(function() {
-  const purple = '#7c3aed', cyan = '#06b6d4', gold = '#f59e0b';
-  const green = '#10b981', red = '#ef4444', pink = '#ec4899';
-
-  // ── 思维范式雷达 ──
-  (function() {
-    var c = echarts.init(document.getElementById('chart-paradigm'));
-    c.setOption({
-      radar: {
-        center: ['50%', '55%'], radius: '70%',
-        axisName: { color: '#94a3b8', fontSize: 11 },
-        splitArea: { areaStyle: { color: ['rgba(255,255,255,0.02)', 'rgba(255,255,255,0.04)'] } },
-        axisLine: { lineStyle: { color: 'rgba(255,255,255,0.1)' } },
-        splitLine: { lineStyle: { color: 'rgba(255,255,255,0.08)' } },
-        indicator: [ {name:'Builder',max:100},{name:'Learner',max:100},{name:'Collector',max:100},{name:'Hacker',max:100},{name:'Explainer',max:100} ]
-      },
-      series: [{
-        type: 'radar',
-        data: [{ value: [{{PARADIGM_VALUES}}], name: '@{{USERNAME}}',
-          areaStyle: { color: 'rgba(124,58,237,0.25)' },
-          lineStyle: { color: purple, width: 2 },
-          itemStyle: { color: purple }
-        }]
-      }]
-    });
-    var r = c.getDomElement(); r.style.width = r.clientWidth + 'px'; r.style.height = r.clientHeight + 'px';
-    c.resize();
-  })();
-
-  // ── 贡献日历热力图 ──
-  (function() {
-    var c = echarts.init(document.getElementById('chart-calendar'));
-    var data = {{CALENDAR_DATA}};
-    if (data.length > 0) {
-      c.setOption({
-        tooltip: { formatter: function(p) { return p.data[0] + ': ' + p.data[1] + ' contributions'; }, backgroundColor: '#1a1a2e', borderColor: '#333', textStyle: { color: '#e2e8f0' } },
-        visualMap: { min: 0, max: {{CALENDAR_MAX}}, orient: 'horizontal', left: 'center', bottom: 0,
-          inRange: { color: ['#1a1a2e', '#1e3a5f', '#216e39', '#30a14e', '#40c463', '#9be9a8'] },
-          textStyle: { color: '#94a3b8' }
-        },
-        calendar: {
-          range: '{{CALENDAR_RANGE}}', cellSize: ['auto', 14],
-          splitLine: { lineStyle: { color: 'rgba(255,255,255,0.04)' } },
-          itemStyle: { borderColor: 'rgba(255,255,255,0.06)', borderWidth: 2, borderRadius: 2 },
-          dayLabel: { color: '#94a3b8' }, monthLabel: { color: '#94a3b8' },
-          yearLabel: { show: false }
-        },
-        series: [{ type: 'heatmap', coordinateSystem: 'calendar', data: data, emphasis: { itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0,0,0,0.5)' } } }]
-      });
-    } else {
-      c.setOption({
-        title: { text: '无 Token 模式下无可用的每日贡献数据', left: 'center', top: 'center', textStyle: { color: '#94a3b8', fontSize: 14, fontWeight: 400 } }
-      });
-    }
-  })();
-
-  // ── 语言分布 ──
-  (function() {
-    var c = echarts.init(document.getElementById('chart-languages'));
-    var data = {{LANGUAGE_DATA}};
-    if (data.length > 0) {
-      c.setOption({
-        series: [{
-          type: 'treemap', data: data, roam: false, width: '100%', height: '100%',
-          label: { show: true, formatter: function(p) { return p.name + '\n' + p.value + ' repos'; }, color: '#e2e8f0', fontSize: 12 },
-          levels: [{ itemStyle: { borderColor: '#0f0f1a', borderWidth: 3, gapWidth: 2 }, upperLabel: { show: false } }],
-          color: [purple, cyan, gold, green, pink, '#6366f1', '#8b5cf6']
-        }]
-      });
-    } else {
-      c.setOption({ title: { text: '暂无语言数据', left: 'center', top: 'center', textStyle: { color: '#94a3b8', fontSize: 14 } } });
-    }
-  })();
-
-  // ── 社交温度计 ──
-  (function() {
-    var c = echarts.init(document.getElementById('chart-social'));
-    var val = {{SOCIAL_SCORE}};
-    c.setOption({
-      series: [{
-        type: 'gauge', startAngle: 210, endAngle: -30, center: ['50%', '60%'], radius: '85%',
-        min: 0, max: 100,
-        axisLine: { show: true, lineStyle: { width: 20, color: [[0.2, red], [0.5, gold], [1, green]] } },
-        axisTick: { show: false }, splitLine: { show: false },
-        axisLabel: { show: false },
-        detail: { valueAnimation: true, formatter: '{value}°', color: '#e2e8f0', fontSize: 32, fontWeight: 700, offsetCenter: [0, '70%'] },
-        data: [{ value: val }],
-        pointer: { show: false },
-        title: { show: true, offsetCenter: [0, '35%'], color: '#94a3b8', fontSize: 13 }
-      }]
-    });
-    c.setOption({ series: [{ title: { text: '{{SOCIAL_LABEL}}' } }] });
-  })();
-
-  // Resize on load
-  window.addEventListener('resize', function() {
-    ['chart-paradigm','chart-calendar','chart-languages','chart-social'].forEach(function(id) {
-      var dom = document.getElementById(id);
-      if (dom) { var inst = echarts.getInstanceByDom(dom); if (inst) inst.resize(); }
-    });
-  });
-})();
-</script>
-
-<!-- ====== SHARE BAR ====== -->
-<div class="share-bar" id="share-bar">
-  <div class="share-inner">
-    <div class="share-title">分享这份蒸馏报告</div>
-    <div class="share-buttons">
-      <button class="share-btn wechat" onclick="shareCopy('wechat')" title="复制文本，粘贴到微信">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M8.691 2.188C3.891 2.188 0 5.476 0 9.53c0 2.212 1.17 4.203 3.002 5.55a.59.59 0 0 1 .213.665l-.39 1.48c-.019.07-.048.141-.048.213 0 .163.13.295.29.295a.326.326 0 0 0 .167-.054l1.903-1.114a.864.864 0 0 1 .717-.098 10.16 10.16 0 0 0 2.837.403c.276 0 .543-.027.811-.05-.857-2.578.157-4.972 1.932-6.446 1.703-1.415 3.882-1.98 5.853-1.838-.576-3.583-4.196-6.348-8.596-6.348zM5.785 5.991c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178A1.17 1.17 0 0 1 4.623 7.17c0-.651.52-1.18 1.162-1.18zm5.813 0c.642 0 1.162.529 1.162 1.18a1.17 1.17 0 0 1-1.162 1.178 1.17 1.17 0 0 1-1.162-1.178c0-.651.52-1.18 1.162-1.18zm5.34 2.867c-1.797-.052-3.746.512-5.28 1.786-1.72 1.428-2.687 3.72-1.78 6.22.942 2.453 3.666 4.229 6.884 4.229.826 0 1.622-.12 2.361-.336a.722.722 0 0 1 .598.082l1.584.926a.272.272 0 0 0 .14.047c.134 0 .24-.111.24-.247 0-.06-.023-.12-.038-.177l-.327-1.233a.582.582 0 0 1-.023-.156.49.49 0 0 1 .201-.398C23.024 18.48 24 16.82 24 14.98c0-3.21-2.931-5.952-7.062-6.122zm-2.18 2.769c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982zm4.844 0c.535 0 .969.44.969.982a.976.976 0 0 1-.969.983.976.976 0 0 1-.969-.983c0-.542.434-.982.97-.982z"/></svg>
-        复制到微信
-      </button>
-      <button class="share-btn qq" onclick="shareCopy('qq')" title="复制文本，粘贴到QQ">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M21.395 15.035a40.548 40.548 0 0 0-.803-2.264l-1.079-2.695c.001-.032.014-.562.014-.836C19.527 4.661 17.262 0 12 0S4.473 4.661 4.473 9.24c0 .274.013.804.014.836L3.408 12.77a39.85 39.85 0 0 0-.803 2.264c-.547 1.613-.468 3.017.607 3.314.406.112.898.007 1.355-.195.138.243.298.473.486.684 1.055 1.186 2.273 1.595 3.145 1.595.261 0 .511-.04.748-.112.268.838.935 1.489 1.76 1.793v.733c0 .426-.115.751-.327.947-.212.195-.523.297-.907.317a.516.516 0 0 0-.484.519c0 .285.232.517.517.517h8.928a.517.517 0 0 0 .517-.517.516.516 0 0 0-.484-.519c-.385-.02-.695-.122-.907-.317-.212-.196-.327-.521-.327-.947v-.733c.825-.304 1.492-.955 1.76-1.793.237.072.487.112.748.112.872 0 2.09-.409 3.145-1.595.188-.211.348-.44.486-.684.457.202.949.307 1.355.195 1.075-.297 1.154-1.701.607-3.314z"/></svg>
-        复制到QQ
-      </button>
-      <button class="share-btn twitter" onclick="shareTwitter()" title="分享到 X / Twitter">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>
-        X
-      </button>
-      <button class="share-btn copy" onclick="shareCopy('all')" title="复制完整卡片文本">
-        <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><rect x="9" y="9" width="13" height="13" rx="2" ry="2" fill="none" stroke="currentColor" stroke-width="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" fill="none" stroke="currentColor" stroke-width="2"/></svg>
-        复制卡片
-      </button>
-    </div>
-    <div class="share-tip" id="share-tip"></div>
+<div class="share-section">
+  <span class="share-label">Share this mirror</span>
+  <div class="share-buttons">
+    <button class="share-btn wechat" onclick="shareCopy('wechat')">微信</button>
+    <button class="share-btn qq" onclick="shareCopy('qq')">QQ</button>
+    <button class="share-btn x" onclick="shareTwitter()">X</button>
+    <button class="share-btn" onclick="shareCopy('all')">复制</button>
   </div>
 </div>
-
-<style>
-  .share-bar {
-    background: linear-gradient(135deg, #1a1a2e 0%, #0f0f1a 100%);
-    border-top: 1px solid rgba(124,58,237,0.15);
-    padding: 40px 24px; text-align: center;
-  }
-  .share-inner { max-width: 600px; margin: 0 auto; }
-  .share-title {
-    font-size: 16px; font-weight: 600; color: var(--muted);
-    margin-bottom: 20px;
-  }
-  .share-buttons { display: flex; justify-content: center; gap: 12px; flex-wrap: wrap; }
-  .share-btn {
-    display: flex; align-items: center; gap: 8px;
-    padding: 12px 20px; border-radius: 12px; border: 1px solid var(--border);
-    background: var(--card); color: var(--text);
-    font-size: 14px; font-weight: 500; cursor: pointer;
-    transition: all 0.2s;
-  }
-  .share-btn:hover { transform: translateY(-2px); }
-  .share-btn.wechat:hover { background: #07c160; border-color: #07c160; color: #fff; }
-  .share-btn.qq:hover { background: #12b7f5; border-color: #12b7f5; color: #fff; }
-  .share-btn.twitter:hover { background: #1d9bf0; border-color: #1d9bf0; color: #fff; }
-  .share-btn.copy:hover { background: var(--accent); border-color: var(--accent); color: #fff; }
-  .share-tip {
-    margin-top: 14px; font-size: 13px; color: var(--accent2);
-    min-height: 20px; transition: opacity 0.3s;
-  }
-  .toast {
-    position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-    background: var(--accent); color: #fff; padding: 10px 24px;
-    border-radius: 8px; font-size: 14px; z-index: 9999;
-    animation: toastIn 0.3s ease, toastOut 0.3s ease 2s forwards;
-  }
-  @keyframes toastIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
-  @keyframes toastOut { to { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
-</style>
+<div class="star-footer">
+  <span>&copy; GitHub Profiler</span>
+  <a href="https://github.com/therain2020/github-profiler" target="_blank" rel="noopener">Star on GitHub &rarr;</a>
+</div>
 
 <script>
-function showToast(msg) {
-  var t = document.createElement('div'); t.className = 'toast'; t.textContent = msg;
-  document.body.appendChild(t);
-  setTimeout(function() { t.remove(); }, 2500);
-}
+(function(){
+  var paper='#faf8f5',muted='#6b6b6b',rule='#e5e0d8';
+  var colors=['#7c3aed','#ec4899','#06b6d4','#f59e0b','#10b981','#6366f1'];
 
-var SHARE_TEXT = '🔮 GitHub Distill — @{{USERNAME}}\n\n' +
-  '{{DISTILLATE}}\n\n' +
-  '🧬 母语: {{NATIVE_LANGUAGE}}\n' +
-  '🎭 职业: {{RPG_CLASS}} ({{RPG_LEVEL}})\n' +
-  '⚔️ 主线: {{MAIN_QUEST}}\n\n' +
-  '蒸馏工具: github-profiler\n' +
-  'https://github.com/therain2020/github-profiler';
+  // Dual radar: self vs mirror
+  (function(){var c=echarts.init(document.getElementById('chart-radar-dual'));var dims={{RADAR_DIMENSIONS}},v1={{RADAR_SELF}},v2={{RADAR_OTHER}};c.setOption({radar:{center:['50%','55%'],radius:'70%',axisName:{color:muted,fontSize:11},splitArea:{areaStyle:{color:['rgba(0,0,0,0.01)','rgba(0,0,0,0.03)']}},axisLine:{lineStyle:{color:rule}},splitLine:{lineStyle:{color:rule}},indicator:dims.map(function(d){return{name:d,max:100}})},series:[{type:'radar',data:[{value:v1,name:'真实的@{{USERNAME}}',areaStyle:{color:'rgba(124,58,237,0.12)'},lineStyle:{color:'#7c3aed',width:2},itemStyle:{color:'#7c3aed'}},{value:v2,name:'{{ALIAS}}',areaStyle:{color:'rgba(236,72,153,0.12)'},lineStyle:{color:'#ec4899',width:2,type:'dashed'},itemStyle:{color:'#ec4899'}}]}],legend:{data:['真实的@{{USERNAME}}','{{ALIAS}}'],bottom:0,textStyle:{color:muted,fontSize:11}}})})();
 
-function shareCopy(platform) {
-  var text = SHARE_TEXT;
-  if (platform === 'wechat') text = '【GitHub 蒸馏报告】@{{USERNAME}}\n\n{{DISTILLATE}}\n\n🎭 {{RPG_CLASS}} | {{RPG_LEVEL}}\n⚔️ {{MAIN_QUEST}}\n\n— 来自 github-profiler';
-  if (platform === 'qq') text = '🔮 @{{USERNAME}} 的技术蒸馏\n\n「{{DISTILLATE}}」\n\n🧬 {{NATIVE_LANGUAGE}} | {{RPG_CLASS}} | {{RPG_LEVEL}}\n\n蒸馏工具: github-profiler';
-  if (navigator.clipboard) {
-    navigator.clipboard.writeText(text).then(function() {
-      showToast('已复制！粘贴到' + (platform === 'wechat' ? '微信' : platform === 'qq' ? 'QQ' : '聊天框') + '即可分享');
-    });
-  } else {
-    var ta = document.createElement('textarea'); ta.value = text; ta.style.position = 'fixed'; ta.style.left = '-9999px';
-    document.body.appendChild(ta); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
-    showToast('已复制！');
-  }
-}
+  // Hourly distribution
+  (function(){var c=echarts.init(document.getElementById('chart-hourly'));var d={{HOURLY_DATA}};c.setOption({xAxis:{type:'category',data:['0h','','','3h','','','6h','','','9h','','','12h','','','15h','','','18h','','','21h','',''],axisLine:{lineStyle:{color:rule}},axisLabel:{color:muted,fontSize:9}},yAxis:{type:'value',axisLine:{lineStyle:{color:rule}},axisLabel:{color:muted},splitLine:{lineStyle:{color:rule}}},series:[{type:'bar',data:d,itemStyle:{color:'#7c3aed',borderRadius:[2,2,0,0]}}]})})();
 
-function shareTwitter() {
-  var t = encodeURIComponent('🔮 GitHub Distill: @{{USERNAME}} — {{DISTILLATE}}');
-  window.open('https://x.com/intent/tweet?text=' + t + '&url=' + encodeURIComponent('https://github.com/therain2020/github-profiler'), '_blank');
-}
+  // Weekday
+  (function(){var c=echarts.init(document.getElementById('chart-weekday'));var d={{WEEKDAY_DATA}};c.setOption({xAxis:{type:'category',data:['Mon','Tue','Wed','Thu','Fri','Sat','Sun'],axisLine:{lineStyle:{color:rule}},axisLabel:{color:muted}},yAxis:{type:'value',axisLine:{lineStyle:{color:rule}},axisLabel:{color:muted},splitLine:{lineStyle:{color:rule}}},series:[{type:'bar',data:d,itemStyle:{color:'#ec4899',borderRadius:[2,2,0,0]}}]})})();
+
+  // Language cloud
+  (function(){var c=echarts.init(document.getElementById('chart-cloud'));var d={{LANG_CLOUD_DATA}};c.setOption({series:[{type:'wordCloud',shape:'circle',sizeRange:[14,48],rotationRange:[0,0],gridSize:8,layoutAnimation:true,textStyle:{fontFamily:'JetBrains Mono,Noto Sans SC,sans-serif',fontWeight:500,color:function(){return colors[Math.floor(Math.random()*colors.length)]}},data:d.map(function(i){return{name:i.name,value:i.weight}})}]})})();
+
+  window.addEventListener('resize',function(){['chart-radar-dual','chart-hourly','chart-weekday','chart-cloud'].forEach(function(id){var d=document.getElementById(id);if(d){var i=echarts.getInstanceByDom(d);if(i)i.resize()}})})})();
+
+function showToast(m){var t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(function(){t.remove()},2500)}
+var REPO='https://github.com/therain2020/github-profiler';
+var S='🔮 @{{USERNAME}} 的蒸馏镜像\n\n代号: {{ALIAS}} — {{REALM}}\n人格: {{PERSONALITY_TAGS}}\n\n"{{QUOTE}}"\n\n⭐ Star us: '+REPO;
+function shareCopy(p){var t=S;if(p==='wechat')t='【GitHub蒸馏】@{{USERNAME}}\n\n代号: {{ALIAS}} — {{REALM}}\n人格标签: {{PERSONALITY_TAGS}}\n\n"{{QUOTE}}"\n\n— github-profiler\n⭐ 求 Star: '+REPO;if(p==='qq')t='🔮 @{{USERNAME}}: {{ALIAS}} ({{SIMILARITY}}%相似)\n人格: {{PERSONALITY_TAGS}}\n\n{{QUOTE}}\n\n⭐ Star: '+REPO;if(navigator.clipboard){navigator.clipboard.writeText(t).then(function(){showToast('Copied')})}else{var ta=document.createElement('textarea');ta.value=t;ta.style.position='fixed';ta.style.left='-9999px';document.body.appendChild(ta);ta.select();document.execCommand('copy');document.body.removeChild(ta);showToast('Copied')}}
+function shareTwitter(){window.open('https://x.com/intent/tweet?text='+encodeURIComponent('🔮 @{{USERNAME}}: {{ALIAS}} ({{SIMILARITY}}%相似) — {{QUOTE}} ⭐')+'&url='+encodeURIComponent(REPO),'_blank')}
 </script>
-
 </body>
 </html>
