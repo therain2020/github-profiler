@@ -1,55 +1,66 @@
--- GitHub Profiler — Supabase Database Schema
+-- GitHub Profiler v2 — Supabase Database Schema (6-dimension)
 -- Run this in the Supabase SQL Editor to set up the database.
 
 -- ============================================================
--- 1. Scores table
+-- 1. Drop old schema (no data migration needed)
 -- ============================================================
-CREATE TABLE IF NOT EXISTS scores (
-  id          BIGSERIAL PRIMARY KEY,
-  username    TEXT NOT NULL,
-  github_id   INTEGER,
-  avatar_url  TEXT,
+DROP VIEW IF EXISTS score_history;
+DROP VIEW IF EXISTS leaderboard;
+DROP TABLE IF EXISTS scores;
 
-  -- Four dimension scores (1.0 - 5.0)
-  tech_score        NUMERIC(2,1) NOT NULL CHECK (tech_score >= 1.0 AND tech_score <= 5.0),
-  engineering_score NUMERIC(2,1) NOT NULL CHECK (engineering_score >= 1.0 AND engineering_score <= 5.0),
-  collab_score      NUMERIC(2,1) NOT NULL CHECK (collab_score >= 1.0 AND collab_score <= 5.0),
-  influence_score   NUMERIC(2,1) NOT NULL CHECK (influence_score >= 1.0 AND influence_score <= 5.0),
-  composite_score   NUMERIC(2,1) NOT NULL CHECK (composite_score >= 1.0 AND composite_score <= 5.0),
+-- ============================================================
+-- 2. Scores table (6 dimensions, 0-100)
+-- ============================================================
+CREATE TABLE scores (
+  id            BIGSERIAL PRIMARY KEY,
+  username      TEXT NOT NULL,
+  github_id     INTEGER,
+  avatar_url    TEXT,
+
+  -- Six dimension scores (0-100)
+  productivity       SMALLINT NOT NULL CHECK (productivity >= 0 AND productivity <= 100),
+  influence          SMALLINT NOT NULL CHECK (influence >= 0 AND influence <= 100),
+  quality            SMALLINT NOT NULL CHECK (quality >= 0 AND quality <= 100),
+  collaboration      SMALLINT NOT NULL CHECK (collaboration >= 0 AND collaboration <= 100),
+  knowledge_sharing  SMALLINT NOT NULL CHECK (knowledge_sharing >= 0 AND knowledge_sharing <= 100),
+  growth_potential   SMALLINT NOT NULL CHECK (growth_potential >= 0 AND growth_potential <= 100),
+  composite_score    NUMERIC(4,1) NOT NULL CHECK (composite_score >= 0 AND composite_score <= 100),
 
   -- Analysis metadata
   profile_tags    TEXT[],
   summary         TEXT NOT NULL,
-  full_report     TEXT,
+  full_report     JSONB,          -- complete analysis result (scoring + distill + optimize)
   github_snapshot JSONB,
 
   -- Submission metadata
-  submitter_id    TEXT,  -- optional: hashed identifier of who submitted
+  submitter_id    TEXT,           -- optional: hashed identifier of who submitted
 
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 -- ============================================================
--- 2. Indexes
+-- 3. Indexes
 -- ============================================================
 CREATE INDEX IF NOT EXISTS idx_scores_username    ON scores(username);
 CREATE INDEX IF NOT EXISTS idx_scores_composite   ON scores(composite_score DESC);
 CREATE INDEX IF NOT EXISTS idx_scores_created     ON scores(created_at DESC);
-CREATE INDEX IF NOT EXISTS idx_scores_tech        ON scores(tech_score DESC);
-CREATE INDEX IF NOT EXISTS idx_scores_influence   ON scores(influence_score DESC);
+CREATE INDEX IF NOT EXISTS idx_scores_productivity ON scores(productivity DESC);
+CREATE INDEX IF NOT EXISTS idx_scores_influence   ON scores(influence DESC);
 
 -- ============================================================
--- 3. Leaderboard view (latest score per user)
+-- 4. Leaderboard view (latest score per user)
 -- ============================================================
 CREATE OR REPLACE VIEW leaderboard AS
 SELECT DISTINCT ON (username)
   username,
   avatar_url,
   composite_score,
-  tech_score,
-  engineering_score,
-  collab_score,
-  influence_score,
+  productivity,
+  influence,
+  quality,
+  collaboration,
+  knowledge_sharing,
+  growth_potential,
   profile_tags,
   summary,
   created_at AS scored_at
@@ -57,23 +68,25 @@ FROM scores
 ORDER BY username, created_at DESC;
 
 -- ============================================================
--- 4. Score history view
+-- 5. Score history view
 -- ============================================================
 CREATE OR REPLACE VIEW score_history AS
 SELECT
   id,
   username,
   composite_score,
-  tech_score,
-  engineering_score,
-  collab_score,
-  influence_score,
+  productivity,
+  influence,
+  quality,
+  collaboration,
+  knowledge_sharing,
+  growth_potential,
   created_at
 FROM scores
 ORDER BY username, created_at DESC;
 
 -- ============================================================
--- 5. Stats function
+-- 6. Stats function
 -- ============================================================
 CREATE OR REPLACE FUNCTION get_stats()
 RETURNS JSON AS $$
@@ -113,7 +126,7 @@ END;
 $$ LANGUAGE plpgsql STABLE;
 
 -- ============================================================
--- 6. Row Level Security
+-- 7. Row Level Security
 -- ============================================================
 ALTER TABLE scores ENABLE ROW LEVEL SECURITY;
 
@@ -122,11 +135,7 @@ CREATE POLICY "public_read_scores"
   ON scores FOR SELECT
   USING (true);
 
--- Anyone can read leaderboard (it's a view, but underlying table needs SELECT)
--- already covered by the policy above
-
--- Insert: anyone with the anon key can insert (relies on Supabase API key protection)
--- For production, add a shared secret check here
+-- Anyone with the anon key can insert
 CREATE POLICY "anon_insert_scores"
   ON scores FOR INSERT
   WITH CHECK (true);

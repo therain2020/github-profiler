@@ -6,3 +6,6 @@ temp/
 node_modules/
 .DS_Store
 .claude/settings.local.json
+.devplan.md
+__pycache__/
+*.pyc

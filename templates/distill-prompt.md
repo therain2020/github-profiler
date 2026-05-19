@@ -110,4 +110,14 @@
 - `another_me` 的雷达图数值应略有偏移，以体现镜像的微妙不同，但仍保持强相关性。
 - 所有中文描述应富有故事感与个性，避免枯燥罗列。
 
-请直接输出该 JSON，不包含任何额外解释。
+## 输出硬约束（违反则解析失败）
+
+1. 你的整个回复必须是一个合法的 JSON 对象，除此之外没有任何其他内容。
+2. 不得使用 markdown 代码块标记（不要输出 ```json 或 ```）。
+3. 回复的第一个字符必须是 `{`，最后一个字符必须是 `}`。
+4. 所有字段必须存在，不得省略任何必填字段。
+5. visualization_data.radar.dimensions 必须是恰好 6 个字符串的数组，values 和 another_me_values 必须是恰好 6 个数字的数组。
+6. visualization_data.commit_heatmap.hourly_distribution 必须是恰好 24 个数字的数组，weekday_distribution 必须是恰好 7 个数字的数组。
+7. 如果某个值无法计算（如 commit 时间无法解析），使用 0 或空数组 `[]`，不能使用 null 或省略字段。
+
+请直接输出该 JSON。
